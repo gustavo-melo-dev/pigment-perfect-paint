@@ -96,5 +96,16 @@ function redrawScreen(): void {
   webglCanvas.drawFramebufferToScreen(screenProgram, screenVAO);
 }
 
+// Atalhos de teclado para mudar a cor do pincel
+window.addEventListener("keydown", (e) => {
+  if (e.key === "r" || e.key === "R") {
+    brush.setColor([1, 0, 0, 1]); // vermelho
+  } else if (e.key === "y" || e.key === "Y") {
+    brush.setColor([1, 1, 0, 1]); // amarelo
+  } else if (e.key === "b" || e.key === "B") {
+    brush.setColor([0, 0, 1, 1]); // azul
+  }
+});
+
 // Initial clear and redraw
 redrawAll();

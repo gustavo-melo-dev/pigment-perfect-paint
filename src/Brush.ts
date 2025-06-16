@@ -202,4 +202,17 @@ export class Brush {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, verts.length / 2);
         gl.bindVertexArray(null);
     }
+
+    /**
+     * Description placeholder
+     *
+     * @public
+     * @param {[number, number, number, number]} color 
+     */
+    public setColor(color: [number, number, number, number]) {
+        this.color = color;
+        const gl = this.gl;
+        gl.useProgram(this.program);
+        gl.uniform4fv(this.colorUniformLocation, this.color);
+    }
 }
