@@ -1,55 +1,100 @@
-import p5 from 'p5';
-import { Canvas } from './Canvas';
-import { Brush } from './Brush';
-import { Line } from './Line';
+import { Canvas } from "./Canvas";
+import { Brush } from "./Brush";
+import { Line } from "./Line";
+import { createFullscreenQuad } from "./fullscreenQuad";
 
-const sketch = (p: p5) => {
-  let canvas: Canvas;
-  let brush: Brush;
-  let drawing = false;
+// create a full-screen canvas and attach it to the html
+const canvasElement = document.createElement("canvas");
+canvasElement.style.border = "1px solid black";
+canvasElement.width = window.innerWidth;
+canvasElement.height = window.innerHeight;
+document.body.appendChild(canvasElement);
 
-  let currentLine: Line | null = null;
-  let lines: Line[] = [];
+// create a WebGL2 context and initialize the canvas
+const webglCanvas = new Canvas(canvasElement);
+const gl = webglCanvas.gl;
 
-  p.setup = () => {
-    canvas = new Canvas(p);
-    canvas.setupCanvas(800, 600);
-    brush = new Brush(p, p.color(0), 3);
-  };
+const brush = new Brush(gl);
 
-  p.mousePressed = () => {
-    drawing = true;
+const lines: Line[] = [];
+let currentLine: Line | null = null;
+let drawing = false;
 
-    const pVector = p.createVector(p.mouseX, p.mouseY);
-    currentLine = new Line(pVector);
-  };
+const { vao: screenVAO, program: screenProgram } = createFullscreenQuad(gl);
 
-  p.mouseDragged = () => {
-    if (!drawing || !currentLine) return;
+// on resize, update canvas size and WebGL viewport
+window.addEventListener("resize", () => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  canvasElement.width = w;
+  canvasElement.height = h;
+  webglCanvas.resize(w, h);
+  webglCanvas.clear();
+  redrawAll();
+});
 
-    const pVector = p.createVector(p.mouseX, p.mouseY);
-    currentLine.addPoint(pVector);
+/**
+ * Converts a MouseEvent's client coordinates to coordinates relative to the canvas element.
+ * This is useful for drawing on the canvas, as it accounts for the canvas's position on the page.
+ *
+ * @param {MouseEvent} event - The mouse event containing the coordinates
+ * @returns {{ x: number; y: number; }} 
+ */
+function getCanvasRelativeCoords(event: MouseEvent): { x: number; y: number; } {
+  const rect = canvasElement.getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
 
-    brush.draw(currentLine);
-  };
 
-  p.mouseReleased = () => {
-    drawing = false;
+// On mouse down, start a new line
+canvasElement.addEventListener("mousedown", (e) => {
+  drawing = true;
+  const pos = getCanvasRelativeCoords(e);
+  currentLine = new Line(pos);
+});
 
-    if (currentLine) {
-      lines.push(currentLine);
-      currentLine = null;
+// On mouse move, add points to the current line and draw it
+canvasElement.addEventListener("mousemove", (e) => {
+  if (!drawing || !currentLine) return;
+  const pos = getCanvasRelativeCoords(e);
+  currentLine.addPoint(pos);
+
+  // Draw current stroke to framebuffer
+  webglCanvas.drawToFramebuffer(() => {
+    brush.draw(currentLine!, canvasElement.width, canvasElement.height);
+  });
+
+  redrawScreen();
+});
+
+// On mouse up, finalize the current line and add it to the list of lines
+canvasElement.addEventListener("mouseup", () => {
+  drawing = false;
+  if (currentLine) {
+    lines.push(currentLine);
+    currentLine = null;
+  }
+});
+
+/** Redraws ALL lines on the WebGL canvas. 
+ *  Used after the canvas is resized.
+ */
+function redrawAll(): void {
+  webglCanvas.clear();
+  webglCanvas.drawToFramebuffer(() => {
+    for (const line of lines) {
+      brush.draw(line, canvasElement.width, canvasElement.height);
     }
-  };
+  });
+  redrawScreen();
+}
 
-  p.draw = () => {
-    if (!drawing) return;
+/** Draws the framebuffer to the screen.
+ *  Used when a new line is drawn.
+ */
+function redrawScreen(): void {
+  webglCanvas.drawFramebufferToScreen(screenProgram, screenVAO);
+}
 
-    if (currentLine) {
-      brush.draw(currentLine);
-    }
-
-  };
-};
-
-new p5(sketch);
+// Initial clear and redraw
+redrawAll();
