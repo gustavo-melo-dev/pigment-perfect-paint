@@ -145,35 +145,50 @@ export class Brush {
      */
     draw(line: Line, canvasWidth: number, canvasHeight: number) {
         const gl = this.gl;
-        if (line.points.length < 2) return;
+        if (line.points.length < 4) return;
 
         const verts: number[] = [];
-        for (let i = 0; i < line.points.length - 1; i++) {
-            // store the current and next point
-            const p0 = line.points[i];
-            const p1 = line.points[i + 1];
 
-            // calculate the normal vector for the segment
+        const resolution = 10; // Number of samples per segment
+        const smoothedPoints: { x: number, y: number }[] = [];
+
+        // Pad endpoints if needed (repeat first and last points)
+        const points = [
+            line.points[0],
+            ...line.points,
+            line.points[line.points.length - 1]
+        ];
+
+        for (let i = 0; i < points.length - 3; i++) {
+            const p0 = points[i];
+            const p1 = points[i + 1];
+            const p2 = points[i + 2];
+            const p3 = points[i + 3];
+
+            for (let j = 0; j < resolution; j++) {
+                const t = j / resolution;
+                smoothedPoints.push(Line.catmullRom(p0, p1, p2, p3, t));
+            }
+        }
+
+        // Generate quad geometry from smoothed points
+        for (let i = 0; i < smoothedPoints.length - 1; i++) {
+            const p0 = smoothedPoints[i];
+            const p1 = smoothedPoints[i + 1];
+
             const dx = p1.x - p0.x;
             const dy = p1.y - p0.y;
             const len = Math.sqrt(dx * dx + dy * dy);
-
             if (len === 0) continue;
 
-            // normalize the vector and scale it to half the brush size (each half will be a side of the quad)
             const nx = (-dy / len) * (this.size / 2);
             const ny = (dx / len) * (this.size / 2);
 
-            // quad for each segment, using TRIANGLE_STRIP order:
             verts.push(
-                p0.x + nx,
-                p0.y + ny,
-                p0.x - nx,
-                p0.y - ny,
-                p1.x + nx,
-                p1.y + ny,
-                p1.x - nx,
-                p1.y - ny
+                p0.x + nx, p0.y + ny,
+                p0.x - nx, p0.y - ny,
+                p1.x + nx, p1.y + ny,
+                p1.x - nx, p1.y - ny
             );
         }
 
