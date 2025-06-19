@@ -16,8 +16,6 @@ const gl = webglCanvas.gl;
 
 const brush = new Brush(gl);
 
-const lines: Line[] = [];
-let currentLine: Line | null = null;
 let drawing = false;
 
 const { vao: screenVAO, program: screenProgram } = createFullscreenQuad(gl);
@@ -52,19 +50,19 @@ canvasElement.addEventListener("mousedown", (e) => {
 
   const pos = getCanvasRelativeCoords(e);
 
-  currentLine = new Line(pos, brush.color);
+  webglCanvas.currentLine = new Line(pos, brush.color);
 });
 
 // On mouse move, add points to the current line and draw it
 canvasElement.addEventListener("mousemove", (e) => {
-  if (!drawing || !currentLine) return;
+  if (!drawing || !webglCanvas.currentLine) return;
 
   const pos = getCanvasRelativeCoords(e);
-  currentLine.addPoint(pos);
+  webglCanvas.currentLine.addPoint(pos);
 
   // Draw current stroke to framebuffer
   webglCanvas.drawToFramebuffer(() => {
-    brush.draw(currentLine!, canvasElement.width, canvasElement.height);
+    brush.draw(webglCanvas.currentLine!, canvasElement.width, canvasElement.height);
   });
 
   redrawScreen();
@@ -73,9 +71,9 @@ canvasElement.addEventListener("mousemove", (e) => {
 // On mouse up, finalize the current line and add it to the list of lines
 canvasElement.addEventListener("mouseup", () => {
   drawing = false;
-  if (currentLine) {
-    lines.push(currentLine);
-    currentLine = null;
+  if (webglCanvas.currentLine) {
+    webglCanvas.lines.push(webglCanvas.currentLine);
+    webglCanvas.currentLine = null;
   }
 });
 
@@ -85,7 +83,7 @@ canvasElement.addEventListener("mouseup", () => {
 function redrawAll(): void {
   webglCanvas.clear();
   webglCanvas.drawToFramebuffer(() => {
-    for (const line of lines) {
+    for (const line of webglCanvas.lines) {
       brush.draw(line, canvasElement.width, canvasElement.height);
     }
   });

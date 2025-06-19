@@ -1,4 +1,5 @@
 import { Line } from "./Line";
+import mixbox from 'mixbox';
 
 
 /**
@@ -16,30 +17,51 @@ const BRUSH_VERTEX_SHADER = `#version 300 es
     uniform vec2 u_resolution;
 
     void main() {
-        // Convert from pixels to normalized device coordinates (NDC)
+        // convert from pixels to normalized device coordinates (NDC)
         vec2 zeroToOne = a_position / u_resolution;
         vec2 zeroToTwo = zeroToOne * 2.0;
         vec2 clipSpace = zeroToTwo - 1.0;
 
-        // Flip Y to match canvas coordinates (top-left origin)
+        // flip Y to match canvas coordinates (top-left origin)
         gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
     }`;
 
 /**
- * @constant
  * This fragment shader outputs a uniform color for every fragment (pixel) drawn.
  * - u_color: the RGBA color to use for the brush stroke.
  * The output color is set to u_color, allowing for transparency and color control.
  */
-const BRUSH_FRAGMENT_SHADER =
+let BRUSH_FRAGMENT_SHADER =
     `#version 300 es
+    
     precision highp float;
     out vec4 outColor;
-
     uniform vec4 u_color;
+
+    // uncomment the following line if you work in linear space
+    // #define MIXBOX_COLORSPACE_LINEAR
+
+    uniform sampler2D mixbox_lut; // bind mixbox.lutTexture(gl) here
+
+    #include "mixbox.glsl"
+
     void main() {
-        outColor = u_color;
+        // u_color is the color of the line
+        // this color is cast to vec3
+        // and mixed with yellow at a ratio of 0.4 for testing purposes
+
+        // need to change to use the color of the line and figure a way to get the color already in the canvas
+        // and then lerp them both together
+        
+        vec3 y = vec3(0.988, 0.827, 0); // warm yellow
+        vec3 my_color = vec3(u_color.r, u_color.g, u_color.b);
+        float t = 0.6; // mixing ratio
+
+        vec3 rgb = mixbox_lerp(my_color, y, t);
+
+        outColor = vec4(rgb, 1.0);
     }`;
+BRUSH_FRAGMENT_SHADER = BRUSH_FRAGMENT_SHADER.replace('#include "mixbox.glsl"', mixbox.glsl());
 
 /**
  * Brush class for drawing lines on a WebGL canvas.
@@ -74,7 +96,7 @@ export class Brush {
     constructor(
         gl: WebGL2RenderingContext,
         color: [number, number, number, number] = [0, 0, 0, 0.3],
-        size = 8
+        size = 30
     ) {
         this.gl = gl;
         this.color = color;
@@ -117,6 +139,9 @@ export class Brush {
         gl.compileShader(vs);
         if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS))
             throw new Error(gl.getShaderInfoLog(vs)!);
+
+
+        console.log("Fragment shader source:", fsSource);
 
         const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
         gl.shaderSource(fs, fsSource);
@@ -193,6 +218,12 @@ export class Brush {
         }
 
         gl.useProgram(this.program);
+
+        // mixbox setup
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, mixbox.lutTexture(gl));
+        gl.uniform1i(gl.getUniformLocation(this.program, "mixbox_lut"), 0);
+
         gl.uniform4fv(this.colorUniformLocation, line.color);
         gl.uniform2f(this.resolutionUniformLocation, canvasWidth, canvasHeight);
 

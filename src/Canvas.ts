@@ -1,3 +1,5 @@
+import type { Line } from "./Line";
+
 /**
  * Canvas class for managing a WebGL2 canvas.
  *
@@ -11,6 +13,9 @@ export class Canvas {
 
     private framebuffer!: WebGLFramebuffer;
     private framebufferTexture!: WebGLTexture;
+
+    public lines: Line[] = [];
+    public currentLine: Line | null = null;
 
     /**
      * Creates a new Canvas instance with a WebGL2 context.
