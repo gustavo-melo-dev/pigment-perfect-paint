@@ -58,8 +58,8 @@ export class Brush {
     private colorUniformLocation: WebGLUniformLocation;
     private resolutionUniformLocation: WebGLUniformLocation;
 
-    public color: [number, number, number, number];
-    public size: number;
+    public color: [number, number, number, number]; // the RGBA color that is loaded in the brush
+    public size: number; // the size of the brush
 
 
     /**
@@ -193,7 +193,7 @@ export class Brush {
         }
 
         gl.useProgram(this.program);
-        gl.uniform4fv(this.colorUniformLocation, this.color);
+        gl.uniform4fv(this.colorUniformLocation, line.color);
         gl.uniform2f(this.resolutionUniformLocation, canvasWidth, canvasHeight);
 
         gl.bindVertexArray(this.vao);
@@ -204,7 +204,7 @@ export class Brush {
     }
 
     /**
-     * Description placeholder
+     * Sets the color of the brush.
      *
      * @public
      * @param {[number, number, number, number]} color 

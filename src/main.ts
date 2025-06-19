@@ -49,13 +49,16 @@ function getCanvasRelativeCoords(event: MouseEvent): { x: number; y: number; } {
 // On mouse down, start a new line
 canvasElement.addEventListener("mousedown", (e) => {
   drawing = true;
+
   const pos = getCanvasRelativeCoords(e);
-  currentLine = new Line(pos);
+
+  currentLine = new Line(pos, brush.color);
 });
 
 // On mouse move, add points to the current line and draw it
 canvasElement.addEventListener("mousemove", (e) => {
   if (!drawing || !currentLine) return;
+
   const pos = getCanvasRelativeCoords(e);
   currentLine.addPoint(pos);
 
@@ -96,14 +99,16 @@ function redrawScreen(): void {
   webglCanvas.drawFramebufferToScreen(screenProgram, screenVAO);
 }
 
-// Atalhos de teclado para mudar a cor do pincel
+// keydown event to change brush color
 window.addEventListener("keydown", (e) => {
+  if (drawing) return; // Don't change color while drawing
+
   if (e.key === "r" || e.key === "R") {
-    brush.setColor([1, 0, 0, 1]); // vermelho
+    brush.setColor([1, 0, 0, 1]); // red
   } else if (e.key === "y" || e.key === "Y") {
-    brush.setColor([1, 1, 0, 1]); // amarelo
+    brush.setColor([1, 1, 0, 1]); // yellow
   } else if (e.key === "b" || e.key === "B") {
-    brush.setColor([0, 0, 1, 1]); // azul
+    brush.setColor([0, 0, 1, 1]); // blue
   }
 });
 

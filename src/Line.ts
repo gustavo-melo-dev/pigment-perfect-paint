@@ -11,7 +11,7 @@ export interface Point {
 }
 
 /**
- * Representation of a line made up of points.
+ * Representation of a line made up of points and a RGBA color.
  *
  * @export
  * @class Line
@@ -19,6 +19,7 @@ export interface Point {
  */
 export class Line {
     public points: Point[] = [];
+    public color: [number, number, number, number]; // RGBA color
 
     /**
      * Creates a new line starting from the given point.
@@ -26,8 +27,9 @@ export class Line {
      * @constructor
      * @param {Point} startPoint 
      */
-    constructor(startPoint: Point) {
+    constructor(startPoint: Point, color: [number, number, number, number] = [0, 0, 0, 1]) {
         this.points = [];
+        this.color = color;
         this.addPoint(startPoint);
     }
 
