@@ -11,8 +11,10 @@ export class Canvas {
     readonly canvas: HTMLCanvasElement;
     readonly gl: WebGL2RenderingContext;
 
-    private framebuffer!: WebGLFramebuffer;
-    private framebufferTexture!: WebGLTexture;
+    // Replace single framebuffer with two for ping-pong rendering
+    private framebuffers!: WebGLFramebuffer[];
+    private textures!: WebGLTexture[];
+    public activeIndex: number = 0; // index we will sample FROM after a stroke is drawn into the other
 
     public lines: Line[] = [];
     public currentLine: Line | null = null;
@@ -29,45 +31,47 @@ export class Canvas {
         if (!gl) throw new Error("WebGL2 not supported");
         this.gl = gl;
 
-        this.initFramebuffer();
+        // Enable blending for transparency accumulation
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+        this.initFramebuffers();
         this.resize(canvas.width, canvas.height);
     }
 
     /**
      * Initializes the framebuffer and its texture for rendering the canvas.
      */
-    private initFramebuffer(): void {
+    private initFramebuffers(): void {
         const gl = this.gl;
+        this.textures = [gl.createTexture()!, gl.createTexture()!];
+        this.framebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
 
-        this.framebuffer = gl.createFramebuffer()!;
-        this.framebufferTexture = gl.createTexture()!;
-
-        gl.bindTexture(gl.TEXTURE_2D, this.framebufferTexture);
-        gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA,
-            this.canvas.width,
-            this.canvas.height,
-            0,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            null
-        );
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-        gl.framebufferTexture2D(
-            gl.FRAMEBUFFER,
-            gl.COLOR_ATTACHMENT0,
-            gl.TEXTURE_2D,
-            this.framebufferTexture,
-            0
-        );
-
+        for (let i = 0; i < 2; i++) {
+            gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.canvas.width, this.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[i], 0);
+            // clear to white so both buffers start identical
+            gl.clearColor(1, 1, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.bindTexture(gl.TEXTURE_2D, null);
     }
+
+    // Accessors for ping-pong
+    public getActiveTexture(): WebGLTexture { return this.textures[this.activeIndex]; }
+    public getPreviousTexture(): WebGLTexture { return this.textures[1 - this.activeIndex]; }
+    public getActiveFramebuffer(): WebGLFramebuffer { return this.framebuffers[this.activeIndex]; }
+    public getInactiveFramebuffer(): WebGLFramebuffer { return this.framebuffers[1 - this.activeIndex]; }
+    public getInactiveTexture(): WebGLTexture { return this.textures[1 - this.activeIndex]; }
+    public swap(): void { this.activeIndex = 1 - this.activeIndex; }
+
+    // Advance to next buffer (the one we will RENDER INTO). After advancing, previous becomes the old active.
+    public advancePingPong(): void { this.activeIndex = 1 - this.activeIndex; }
 
     /**
      * Resizes the canvas and updates the WebGL viewport and framebuffer texture.
@@ -79,22 +83,15 @@ export class Canvas {
         const gl = this.gl;
         this.canvas.width = width;
         this.canvas.height = height;
-
         gl.viewport(0, 0, width, height);
-        gl.bindTexture(gl.TEXTURE_2D, this.framebufferTexture);
-
-        // Update the texture size to match the new canvas size
-        gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA,
-            width,
-            height,
-            0,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            null
-        );
+        for (let i = 0; i < 2; i++) {
+            gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
+            gl.clearColor(1, 1, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
 
@@ -103,9 +100,11 @@ export class Canvas {
      */
     clear(): void {
         const gl = this.gl;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-        gl.clearColor(1, 1, 1, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        for (let i = 0; i < 2; i++) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
+            gl.clearColor(1, 1, 1, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
@@ -117,14 +116,11 @@ export class Canvas {
      */
     drawFramebufferToScreen(program: WebGLProgram, vao: WebGLVertexArrayObject) {
         const gl = this.gl;
-
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);
-
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.framebufferTexture);
-
+        gl.bindTexture(gl.TEXTURE_2D, this.getActiveTexture());
         gl.bindVertexArray(vao);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.bindVertexArray(null);
@@ -137,7 +133,7 @@ export class Canvas {
      */
     drawToFramebuffer(callback: () => void): void {
         const gl = this.gl;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.getActiveFramebuffer());
         callback();
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
