@@ -56,14 +56,12 @@ canvasElement.addEventListener("mousedown", (e) => {
 // On mouse move, add points to the current line and draw it
 canvasElement.addEventListener("mousemove", (e) => {
   if (!drawing || !webglCanvas.currentLine) return;
-
   const pos = getCanvasRelativeCoords(e);
   webglCanvas.currentLine.addPoint(pos);
 
-  // Draw current stroke to framebuffer
-  webglCanvas.drawToFramebuffer(() => {
-    brush.draw(webglCanvas.currentLine!, canvasElement.width, canvasElement.height);
-  });
+  // Draw only the new part incrementally - this allows self-interaction
+  // without the over-accumulation issue
+  brush.drawIncremental(webglCanvas.currentLine, canvasElement.width, canvasElement.height, webglCanvas);
 
   redrawScreen();
 });
@@ -82,11 +80,9 @@ canvasElement.addEventListener("mouseup", () => {
  */
 function redrawAll(): void {
   webglCanvas.clear();
-  webglCanvas.drawToFramebuffer(() => {
-    for (const line of webglCanvas.lines) {
-      brush.draw(line, canvasElement.width, canvasElement.height);
-    }
-  });
+  for (const line of webglCanvas.lines) {
+    brush.draw(line, canvasElement.width, canvasElement.height, webglCanvas);
+  }
   redrawScreen();
 }
 
@@ -102,11 +98,11 @@ window.addEventListener("keydown", (e) => {
   if (drawing) return; // Don't change color while drawing
 
   if (e.key === "r" || e.key === "R") {
-    brush.setColor([1, 0, 0, 1]); // red
+    brush.setColor([1, 0, 0, 0.3]); // red
   } else if (e.key === "y" || e.key === "Y") {
-    brush.setColor([1, 1, 0, 1]); // yellow
+    brush.setColor([1, 1, 0, 0.3]); // yellow
   } else if (e.key === "b" || e.key === "B") {
-    brush.setColor([0, 0, 1, 1]); // blue
+    brush.setColor([0, 0, 1, 0.3]); // blue
   }
 });
 

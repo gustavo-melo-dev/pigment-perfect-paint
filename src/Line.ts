@@ -20,6 +20,7 @@ export interface Point {
 export class Line {
     public points: Point[] = [];
     public color: [number, number, number, number]; // RGBA color
+    public drawnPointCount: number = 0; // Track how many points have been drawn
 
     /**
      * Creates a new line starting from the given point.
@@ -30,6 +31,7 @@ export class Line {
     constructor(startPoint: Point, color: [number, number, number, number] = [0, 0, 0, 1]) {
         this.points = [];
         this.color = color;
+        this.drawnPointCount = 0;
         this.addPoint(startPoint);
     }
 
@@ -40,6 +42,28 @@ export class Line {
      */
     addPoint(p: Point) {
         this.points.push(p);
+    }
+
+    /**
+     * Gets the points that haven't been drawn yet.
+     * Returns enough points to draw new segments with proper smoothing.
+     */
+    getNewPoints(): Point[] {
+        if (this.points.length <= this.drawnPointCount) {
+            return [];
+        }
+
+        // For Catmull-Rom splines, we need at least 4 points to draw
+        // Include some overlap to ensure smooth connection with previously drawn segments
+        const startIndex = Math.max(0, this.drawnPointCount - 3);
+        return this.points.slice(startIndex);
+    }
+
+    /**
+     * Marks points as drawn up to the current point count.
+     */
+    markAsDrawn() {
+        this.drawnPointCount = this.points.length;
     }
 
     /**
