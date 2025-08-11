@@ -1,5 +1,5 @@
-import { Canvas } from "./Canvas";
-import { Brush } from "./Brush";
+import { Canvas } from "./canvas/Canvas";
+import { Brush } from "./brush/Brush";
 import { Line } from "./Line";
 import { createFullscreenQuad } from "./fullscreenQuad";
 
@@ -105,6 +105,9 @@ window.addEventListener("keydown", (e) => {
     brush.setColor([0, 0, 1, 0.3]); // blue
   }
 });
+
+// amimir honk shooo
+await new Promise((resolve) => setTimeout(resolve, 200));
 
 // Initial clear and redraw
 redrawAll();
