@@ -1,8 +1,9 @@
 import type { Canvas } from "../canvas/Canvas";
 import { Line } from "../Line";
 import { BRUSH_VERTEX_SHADER, BRUSH_FRAGMENT_SHADER, COPY_VERTEX_SHADER, COPY_FRAGMENT_SHADER } from "./shaders";
-import { createProgram, createTextureFromImage, bindTexture } from "../webgl/webglUtils";
+import { createProgram, createTextureFromImage, bindTexture, enableScissorBasedOnPosition } from "../webgl/webglUtils";
 import mixbox from 'mixbox';
+import { AppContext } from "../AppContext";
 
 /**
  * Brush class for drawing lines on a WebGL canvas.
@@ -138,6 +139,11 @@ export class Brush {
         const canvasHeight = canvas.canvas.height;
         if (line.points.length < 4) return;
 
+        // determine which area this line should be drawn in
+        // based on the first point of the line
+        const firstPoint = line.points[0];
+        enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
+
         // Build smoothed centerline
         const resolution = 10; // samples per spline segment
         const smoothedPoints: { x: number, y: number }[] = [];
@@ -199,14 +205,18 @@ export class Brush {
         // reset viewport to full canvas size for framebuffer rendering
         gl.viewport(0, 0, canvasWidth, canvasHeight);
 
-        // 2) Copy previous texture into destination
+        // 2) First, copy the ENTIRE previous texture (without scissor) to preserve all areas
+        gl.disable(gl.SCISSOR_TEST); // Temporarily disable scissor for full copy
         gl.useProgram(this.copyProgram);
         gl.bindVertexArray(this.copyVao);
         bindTexture(gl, prevTex, 0);
         gl.uniform1i(this.copyPreviousTextureUniformLocation, 0);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-        // 3) Draw new stroke over accumulated content
+        // 3) Re-enable scissor test for the stroke drawing based on line position
+        enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
+
+        // 4) Draw new stroke over accumulated content (within scissor area)
         gl.useProgram(this.program);
 
         // Bind previous texture
@@ -235,6 +245,9 @@ export class Brush {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, stripVerts.length / 2);
         gl.bindVertexArray(null);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        // Disable scissor test after drawing
+        gl.disable(gl.SCISSOR_TEST);
     }
 
     /**

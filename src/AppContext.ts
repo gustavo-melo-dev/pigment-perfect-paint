@@ -42,7 +42,7 @@ export class AppContext {
         attachEventListeners();
 
         // initial clear and redraw
-        this.webglCanvas.redrawAll();
+        AppContext.redrawAll();
     }
 
     static startDrawing(x: number, y: number) {
@@ -57,8 +57,6 @@ export class AppContext {
         const pos = { x, y };
         this.currentLine.addPoint(pos);
 
-        // Draw only the new part incrementally - this allows self-interaction
-        // without the over-accumulation issue
         this.brush.drawIncremental(this.currentLine, this.webglCanvas);
 
         this.redrawScreen();
@@ -78,7 +76,13 @@ export class AppContext {
     }
 
     static redrawAll() {
-        this.webglCanvas.redrawAll();
+        this.webglCanvas.clear();
+
+        for (const line of this.lines) {
+            // Simply draw each line - scissor will be determined automatically
+            this.brush.draw(line, this.webglCanvas);
+        }
+        this.redrawScreen();
     }
 
     static resizeCanvas(width: number, height: number) {
@@ -93,4 +97,5 @@ export class AppContext {
         if (this.drawing) return; // Don't change color while drawing
         this.brush.setColor(color);
     }
+
 }

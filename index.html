@@ -32,7 +32,7 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 255, 0, 0.1);
+        z-index: 1;
     }
 
     #palette-area {
@@ -41,8 +41,8 @@
         left: 2%;
         width: 21%;
         height: 50%;
-        background-color: rgba(255, 0, 0, 0.1);
-        z-index: 1;
+        /* background-color: rgba(255, 0, 0, 0.1); */
+        z-index: 2;
     }
 
     #canvas-area {
@@ -51,12 +51,24 @@
         left: 25%;
         width: 75%;
         height: 100%;
-        background-color: rgba(0, 0, 255, 0.1);
-        z-index: 1;
+        z-index: 2;
+        /* background-color: rgba(0, 0, 255, 0.1); */
+    }
+
+    #frame {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 25%;
+        height: 100%;
+        background: rgb(199, 199, 199);
+        z-index: 0;
     }
 </style>
 
 <body>
+    <div id="frame"></div>
+
     <div id="app">
         <div id="palette-area">
         </div>

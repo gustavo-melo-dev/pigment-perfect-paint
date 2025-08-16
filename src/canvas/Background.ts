@@ -1,4 +1,5 @@
-import { createProgram, bindTexture, createTextureFromImage } from "../webgl/webglUtils";
+import { AppContext } from "../AppContext";
+import { createProgram, bindTexture, createTextureFromImage, enableScissorForElement, disableScissor } from "../webgl/webglUtils";
 import { BACKGROUND_VERTEX_SHADER, BACKGROUND_FRAGMENT_SHADER } from "./shaders";
 
 /**
@@ -62,6 +63,22 @@ export class Background {
      * Renders the background texture to the current framebuffer with stretching and opacity.
      */
     public render(): void {
+        const canvasAreaElement = document.getElementById("canvas-area") as HTMLDivElement;
+        const paletteAreaElement = document.getElementById("palette-area") as HTMLDivElement;
+
+        if (canvasAreaElement) {
+            enableScissorForElement(this.gl, AppContext.canvasElement, canvasAreaElement);
+            this.renderArea();
+        }
+
+        if (paletteAreaElement) {
+            enableScissorForElement(this.gl, AppContext.canvasElement, paletteAreaElement);
+            this.renderArea();
+        }
+        disableScissor(this.gl);
+    }
+
+    private renderArea(): void {
         const gl = this.gl;
 
         gl.useProgram(this.program);
@@ -79,7 +96,6 @@ export class Background {
 
         gl.bindVertexArray(null);
     }
-
     /**
      * Cleanup method to dispose of WebGL resources.
      */

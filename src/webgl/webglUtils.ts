@@ -111,3 +111,82 @@ export function createBuffer(gl: WebGLRenderingContext, data: Float32Array, targ
 
     return buffer;
 }
+
+/**
+ * Enables scissor test based on which HTML element contains the given point
+ */
+export function enableScissorBasedOnPosition(gl: WebGLRenderingContext, x: number, y: number, canvas: HTMLCanvasElement,): void {
+    const canvasAreaElement = document.getElementById("canvas-area") as HTMLDivElement;
+    const paletteAreaElement = document.getElementById("palette-area") as HTMLDivElement
+    if (!canvasAreaElement || !paletteAreaElement) {
+        console.warn("Canvas or palette area element not found");
+        return;
+    }
+
+    // Check canvas-area first (since it's the main drawing area)
+    if (isPointInElement(x, y, canvas, canvasAreaElement)) {
+        enableScissorForElement(gl, canvas, canvasAreaElement);
+        return;
+    }
+
+    // Check palette-area
+    if (isPointInElement(x, y, canvas, paletteAreaElement)) {
+        enableScissorForElement(gl, canvas, paletteAreaElement);
+        return;
+    }
+
+    // If not in any drawable area, disable scissor (draw nowhere)
+    disableScissor(gl);
+}
+
+/**
+ * Checks if a point is inside a given HTML element
+ */
+export function isPointInElement(x: number, y: number, canvas: HTMLCanvasElement, element: HTMLDivElement): boolean {
+    if (!element) return false;
+
+    const elementRect = element.getBoundingClientRect();
+    const canvasElement = canvas.getBoundingClientRect();
+
+    // Convert HTML coordinates to canvas coordinates
+    const scaleX = canvas.width / canvasElement.width;
+    const scaleY = canvas.height / canvasElement.height;
+
+    const bounds = {
+        left: (elementRect.left - canvasElement.left) * scaleX,
+        right: (elementRect.right - canvasElement.left) * scaleX,
+        top: (elementRect.top - canvasElement.top) * scaleY,
+        bottom: (elementRect.bottom - canvasElement.top) * scaleY
+    };
+
+    return x >= bounds.left && x <= bounds.right &&
+        y >= bounds.top && y <= bounds.bottom;
+}
+
+/**
+ * Enables scissor test for any HTML element by ID
+ */
+export function enableScissorForElement(gl: WebGLRenderingContext, canvas: HTMLCanvasElement, element: HTMLDivElement): void {
+    gl.enable(gl.SCISSOR_TEST);
+
+    const targetRect = element.getBoundingClientRect();
+    const canvasElement = canvas.getBoundingClientRect();
+
+    // Convert HTML coordinates to WebGL scissor coordinates
+    const scaleX = canvas.width / canvasElement.width;
+    const scaleY = canvas.height / canvasElement.height;
+
+    const x = Math.floor((targetRect.left - canvasElement.left) * scaleX);
+    const y = Math.floor((canvasElement.bottom - targetRect.bottom) * scaleY); // Flip Y for WebGL
+    const width = Math.floor(targetRect.width * scaleX);
+    const height = Math.floor(targetRect.height * scaleY);
+
+    gl.scissor(x, y, width, height);
+}
+
+/**
+ * Disables scissor test
+ */
+export function disableScissor(gl: WebGLRenderingContext): void {
+    gl.disable(gl.SCISSOR_TEST);
+}

@@ -1,4 +1,4 @@
-import { bindTexture } from "../webgl/webglUtils";
+import { bindTexture, enableScissorBasedOnPosition, isPointInElement, enableScissorForElement, disableScissor } from "../webgl/webglUtils";
 import { Background } from "./Background";
 import { AppContext } from "../AppContext";
 /**
@@ -59,13 +59,14 @@ export class Canvas {
             gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[i], 0);
 
+            // Clear to transparent first
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
             this.background.render();
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.bindTexture(gl.TEXTURE_2D, null);
-    }
-
-    // Accessors for ping-pong
+    }    // Accessors for ping-pong
     public getActiveTexture(): WebGLTexture { return this.textures[this.activeIndex]; }
     public getPreviousTexture(): WebGLTexture { return this.textures[1 - this.activeIndex]; }
     public getActiveFramebuffer(): WebGLFramebuffer { return this.framebuffers[this.activeIndex]; }
@@ -88,6 +89,12 @@ export class Canvas {
             gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
             gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
+
+            // clear to transparent
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // put in the background texture
             this.background.render();
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -95,12 +102,18 @@ export class Canvas {
     }
 
     /**
-     * Clears the framebuffer by rendering the background.
+     * Clears the framebuffer by rendering the background only in drawable areas.
      */
     public clear(): void {
         const gl = this.gl;
         for (let i = 0; i < 2; i++) {
             gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
+
+            // clear to transparent
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // put in the background texture
             this.background.render();
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -129,17 +142,4 @@ export class Canvas {
     public redrawScreen(): void {
         this.drawFramebufferToScreen(AppContext.screenProgram, AppContext.screenVAO);
     }
-
-    /** Redraws ALL lines on the WebGL canvas. 
-     *  Used after the canvas is resized.
-     */
-    public redrawAll(): void {
-        this.clear();
-
-        for (const line of AppContext.lines) {
-            AppContext.brush.draw(line, this);
-        }
-        this.redrawScreen();
-    }
-
 }
