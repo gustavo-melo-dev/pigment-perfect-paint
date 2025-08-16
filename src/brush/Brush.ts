@@ -108,7 +108,7 @@ export class Brush {
      * @param {number} canvasHeight - Height of the canvas.
      * @param {Canvas} canvas - The canvas to sample the texture colors from.
      */
-    drawIncremental(line: Line, canvasWidth: number, canvasHeight: number, canvas: Canvas): void {
+    drawIncremental(line: Line, canvas: Canvas): void {
         const newPoints = line.getNewPoints();
         if (newPoints.length < 4) return;
 
@@ -117,7 +117,7 @@ export class Brush {
         tempLine.points = newPoints;
 
         // Draw the incremental part
-        this.draw(tempLine, canvasWidth, canvasHeight, canvas);
+        this.draw(tempLine, canvas);
 
         // Mark the line as drawn up to this point
         line.markAsDrawn();
@@ -132,8 +132,10 @@ export class Brush {
      * @param {number} canvasHeight - Height of the canvas.
      * @param {Canvas} canvas - The canvas to sample the texture colors from.
      */
-    draw(line: Line, canvasWidth: number, canvasHeight: number, canvas: Canvas): void {
+    draw(line: Line, canvas: Canvas): void {
         const gl = this.gl;
+        const canvasWidth = canvas.canvas.width;
+        const canvasHeight = canvas.canvas.height;
         if (line.points.length < 4) return;
 
         // Build smoothed centerline
@@ -194,6 +196,9 @@ export class Brush {
         const destFbo = canvas.getActiveFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, destFbo);
 
+        // reset viewport to full canvas size for framebuffer rendering
+        gl.viewport(0, 0, canvasWidth, canvasHeight);
+
         // 2) Copy previous texture into destination
         gl.useProgram(this.copyProgram);
         gl.bindVertexArray(this.copyVao);
@@ -217,9 +222,7 @@ export class Brush {
         gl.uniform1i(this.brushTextureUniformLocation, 2);
 
         gl.uniform4fv(this.colorUniformLocation, line.color);
-        gl.uniform2f(this.resolutionUniformLocation, canvasWidth, canvasHeight);
-
-        gl.bindVertexArray(this.vao);
+        gl.uniform2f(this.resolutionUniformLocation, canvasWidth, canvasHeight); gl.bindVertexArray(this.vao);
 
         // Upload position data
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);

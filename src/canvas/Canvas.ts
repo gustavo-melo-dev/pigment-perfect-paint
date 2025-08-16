@@ -1,7 +1,6 @@
-import type { Line } from "../Line";
 import { bindTexture } from "../webgl/webglUtils";
 import { Background } from "./Background";
-
+import { AppContext } from "../AppContext";
 /**
  * Canvas class for managing a WebGL2 canvas.
  *
@@ -21,8 +20,6 @@ export class Canvas {
     private background!: Background;
 
     public activeIndex: number = 0; // index we will sample FROM after a stroke is drawn into the other
-    public lines: Line[] = [];
-    public currentLine: Line | null = null;
 
     /**
      * Creates a new Canvas instance with a WebGL2 context.
@@ -113,28 +110,36 @@ export class Canvas {
      * Draws the framebuffer texture to the screen using a fullscreen quad.
      *
      * @param {WebGLProgram} program - WebGL program to use for rendering.
-     * @param {WebGLVertexArrayObject} vao - Vertex array object for the fullscreen quad.
+     * @param {WebGLVertexArrayObject} VAO - Vertex array object for the fullscreen quad.
      */
-    public drawFramebufferToScreen(program: WebGLProgram, vao: WebGLVertexArrayObject) {
+    public drawFramebufferToScreen(program: WebGLProgram, VAO: WebGLVertexArrayObject) {
         const gl = this.gl;
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);
         bindTexture(gl, this.getActiveTexture(), 0);
-        gl.bindVertexArray(vao);
+        gl.bindVertexArray(VAO);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.bindVertexArray(null);
     }
 
-    /**
-     * Draws to the framebuffer by executing the provided callback function.
-     *
-     * @param {() => void} callback - Callback function that contains the drawing logic.
+    /** Draws the framebuffer to the screen.
+     *  Used when a new line is drawn.
      */
-    public drawToFramebuffer(callback: () => void): void {
-        const gl = this.gl;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.getActiveFramebuffer());
-        callback();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    public redrawScreen(): void {
+        this.drawFramebufferToScreen(AppContext.screenProgram, AppContext.screenVAO);
     }
+
+    /** Redraws ALL lines on the WebGL canvas. 
+     *  Used after the canvas is resized.
+     */
+    public redrawAll(): void {
+        this.clear();
+
+        for (const line of AppContext.lines) {
+            AppContext.brush.draw(line, this);
+        }
+        this.redrawScreen();
+    }
+
 }
