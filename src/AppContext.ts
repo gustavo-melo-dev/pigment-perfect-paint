@@ -14,6 +14,7 @@ export class AppContext {
     static screenProgram: WebGLProgram;
     static lines: Line[] = [];
     static currentLine: Line | null = null;
+    static useMixbox: boolean = true; // Default to MIXBOX mode
 
     static async initialize(): Promise<void> {
         // create a full-screen canvas and attach it to the html
@@ -79,8 +80,43 @@ export class AppContext {
         this.webglCanvas.clear();
 
         for (const line of this.lines) {
-            // Simply draw each line - scissor will be determined automatically
-            this.brush.draw(line, this.webglCanvas);
+            // Simulate the incremental drawing process for each line
+            // Reset the drawnPointCount to 0 to start fresh
+            line.drawnPointCount = 0;
+
+            // Split the line into segments of 4 points each, with 3-point overlaps
+            // This mimics the incremental drawing process
+            const totalPoints = line.points.length;
+
+            if (totalPoints < 4) {
+                // Not enough points for a proper curve, draw directly
+                this.brush.draw(line, this.webglCanvas);
+                continue;
+            }
+
+            // Draw the line incrementally in chunks, similar to how it was originally drawn
+            const segmentSize = 4; // Minimum points needed for Catmull-Rom spline
+            const step = 1; // Move forward this many points each segment
+
+            for (let i = 0; i + segmentSize <= totalPoints; i += step) {
+                // Create a temporary line with just the points for this segment
+                const tempLine = new Line(line.points[i], line.color);
+                tempLine.points = line.points.slice(i, i + segmentSize);
+
+                // Draw this segment
+                this.brush.draw(tempLine, this.webglCanvas);
+
+                // Mark these points as drawn in the original line
+                line.drawnPointCount = Math.min(i + segmentSize, totalPoints);
+            }
+
+            // Ensure any remaining points are drawn
+            if (line.drawnPointCount < totalPoints) {
+                const tempLine = new Line(line.points[totalPoints - segmentSize], line.color);
+                tempLine.points = line.points.slice(totalPoints - segmentSize);
+                this.brush.draw(tempLine, this.webglCanvas);
+                line.drawnPointCount = totalPoints;
+            }
         }
         this.redrawScreen();
     }
@@ -96,6 +132,13 @@ export class AppContext {
     static changeBrushColor(color: [number, number, number, number]) {
         if (this.drawing) return; // Don't change color while drawing
         this.brush.setColor(color);
+    }
+
+    static toggleMixingMode() {
+        this.useMixbox = !this.useMixbox;
+        this.brush.setMixingMode(this.useMixbox);
+        // Redraw all lines with the new mixing mode
+        this.redrawAll();
     }
 
 }

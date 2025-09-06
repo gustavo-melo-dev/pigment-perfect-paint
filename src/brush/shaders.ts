@@ -47,6 +47,7 @@ export let BRUSH_FRAGMENT_SHADER = `#version 300 es
     // #define MIXBOX_COLORSPACE_LINEAR
 
     uniform sampler2D mixbox_lut; // bind mixbox.lutTexture(gl) here
+    uniform int u_useMixbox; // 1 = use MIXBOX, 0 = use RGB
 
     #include "mixbox.glsl"
 
@@ -54,18 +55,48 @@ export let BRUSH_FRAGMENT_SHADER = `#version 300 es
         vec4 dstColor = texture(u_previousTexture, v_texCoord);
         vec4 brushTexel = texture(u_brushTexture, v_brushTexCoord);
         
-        // Use brush texture alpha as the mixing strength, respecting low alpha values
-        float brushStrength = brushTexel.a * u_color.a * 0.15;
+        // Get brush texture alpha as a mask
+        float brushMask = brushTexel.a;
+        
+        // Normalize brush opacity to a 0-1 range (where 1.0 is fully opaque)
+        float normalizedOpacity = u_color.a;
+        
+        // Calculate final brush strength based on the brush texture and opacity
+        // When opacity is 1.0, we want the brush to be fully opaque
+        float brushStrength;
+        
+        if (normalizedOpacity >= 0.99) {
+            // At max opacity, use the brush mask directly for complete coverage
+            brushStrength = brushMask;
+        } else {
+            // For lower opacity settings, use a gentler blending factor
+            brushStrength = brushMask * normalizedOpacity * 0.3;
+        }
         
         // No threshold - smooth blend based on actual brush texture alpha
         vec3 my_color = vec3(u_color.r, u_color.g, u_color.b);
         vec3 canvas_color = vec3(dstColor.r, dstColor.g, dstColor.b);
         
-        // Mix colors using mixbox, with the actual brush strength
-        vec3 mixedColor = mixbox_lerp(canvas_color, my_color, brushStrength);
+        // Choose mixing mode based on u_useMixbox flag
+        vec3 mixedColor;
+        if (u_useMixbox == 1) {
+            // Mix colors using mixbox, with the calculated brush strength
+            mixedColor = mixbox_lerp(canvas_color, my_color, brushStrength);
+        } else {
+            // Simple RGB linear interpolation
+            mixedColor = mix(canvas_color, my_color, brushStrength);
+        }
         
-        // Very gentle opacity accumulation that respects the brush texture alpha
-        float newAlpha = dstColor.a + brushStrength;
+        // Opacity accumulation that respects the brush texture alpha
+        // For full opacity (1.0), we want to reach full opacity faster
+        float newAlpha;
+        if (normalizedOpacity >= 0.99) {
+            // At max opacity, quickly reach full opacity where brush is applied
+            newAlpha = max(dstColor.a, brushMask);
+        } else {
+            // For lower opacity, more gentle accumulation
+            newAlpha = dstColor.a + brushStrength * 0.5;
+        }
         newAlpha = min(newAlpha, 1.0);
         
         outColor = vec4(mixedColor, newAlpha);

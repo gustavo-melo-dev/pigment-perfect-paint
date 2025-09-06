@@ -1,4 +1,4 @@
-import { bindTexture, enableScissorBasedOnPosition, isPointInElement, enableScissorForElement, disableScissor } from "../webgl/webglUtils";
+import { bindTexture } from "../webgl/webglUtils";
 import { Background } from "./Background";
 import { AppContext } from "../AppContext";
 /**
@@ -141,5 +141,61 @@ export class Canvas {
      */
     public redrawScreen(): void {
         this.drawFramebufferToScreen(AppContext.screenProgram, AppContext.screenVAO);
+    }
+
+    /**
+     * Picks a color from the canvas at the specified coordinates
+     * @param x Canvas x coordinate
+     * @param y Canvas y coordinate
+     * @returns RGBA color array [r, g, b, a] with values 0-1, or null if outside palette area
+     */
+    public pickColor(x: number, y: number): [number, number, number, number] | null {
+        const gl = this.gl;
+
+        // Check if the point is in the palette area
+        const paletteElement = document.getElementById("palette-area") as HTMLDivElement;
+        if (!paletteElement) return null;
+
+        const paletteRect = paletteElement.getBoundingClientRect();
+        const canvasElement = this.canvas.getBoundingClientRect();
+
+        // Convert coordinates to check if in palette area
+        const scaleX = this.canvas.width / canvasElement.width;
+        const scaleY = this.canvas.height / canvasElement.height;
+
+        const paletteBounds = {
+            left: (paletteRect.left - canvasElement.left) * scaleX,
+            right: (paletteRect.right - canvasElement.left) * scaleX,
+            top: (paletteRect.top - canvasElement.top) * scaleY,
+            bottom: (paletteRect.bottom - canvasElement.top) * scaleY
+        };
+
+        // Only pick color if in palette area
+        if (x < paletteBounds.left || x > paletteBounds.right ||
+            y < paletteBounds.top || y > paletteBounds.bottom) {
+            return null;
+        }
+
+        // Bind the active framebuffer to read from
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.getActiveFramebuffer());
+
+        // Create a 1x1 pixel buffer to read the color
+        const pixels = new Uint8Array(4);
+
+        // Read the pixel at the specified coordinates
+        // Note: WebGL coordinates are bottom-left origin, so flip Y
+        const webglY = this.canvas.height - y;
+        gl.readPixels(Math.floor(x), Math.floor(webglY), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+        // Unbind framebuffer
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        // Convert from 0-255 to 0-1 range and return
+        return [
+            pixels[0] / 255,
+            pixels[1] / 255,
+            pixels[2] / 255,
+            pixels[3] / 255,
+        ];
     }
 }

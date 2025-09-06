@@ -34,6 +34,8 @@ export class Brush {
 
     public color: [number, number, number, number]; // the RGBA color that is loaded in the brush
     public size: number; // the size of the brush
+    public brushOpacity: number = 1.0; // the opacity of the brush (0-1)
+    private useMixbox: boolean = true; // Whether to use MIXBOX or RGB lerping
 
 
     /**
@@ -48,7 +50,7 @@ export class Brush {
     constructor(
         gl: WebGL2RenderingContext,
         color: [number, number, number, number] = [0, 0, 0, 1],
-        size = 50
+        size = 40 // Default size of 4 * 10
     ) {
         this.gl = gl;
         this.color = color;
@@ -98,6 +100,9 @@ export class Brush {
         // Load brush texture
         const texture = createTextureFromImage(this.gl, "brush.png");
         this.brushTexture = texture;
+
+        // Set initial mixing mode
+        this.setMixingMode(this.useMixbox);
     }
 
     /**
@@ -105,8 +110,6 @@ export class Brush {
      * This allows for real-time drawing with self-interaction but without over-accumulation.
      *
      * @param {Line} line - Line to draw incrementally.
-     * @param {number} canvasWidth - Width of the canvas.
-     * @param {number} canvasHeight - Height of the canvas.
      * @param {Canvas} canvas - The canvas to sample the texture colors from.
      */
     drawIncremental(line: Line, canvas: Canvas): void {
@@ -141,11 +144,13 @@ export class Brush {
 
         // determine which area this line should be drawn in
         // based on the first point of the line
+        // Use the first point for scissoring - this ensures consistent scissor regions
+        // regardless of whether we're drawing the full line or just a segment
         const firstPoint = line.points[0];
         enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
 
         // Build smoothed centerline
-        const resolution = 10; // samples per spline segment
+        const resolution = 20; // samples per spline segment
         const smoothedPoints: { x: number, y: number }[] = [];
         const points = [line.points[0], ...line.points, line.points[line.points.length - 1]];
         for (let i = 0; i < points.length - 3; i++) {
@@ -231,7 +236,14 @@ export class Brush {
         bindTexture(gl, this.brushTexture, 2);
         gl.uniform1i(this.brushTextureUniformLocation, 2);
 
-        gl.uniform4fv(this.colorUniformLocation, line.color);
+        // Set the mixing mode uniform
+        const useMixboxLocation = gl.getUniformLocation(this.program, "u_useMixbox");
+        if (useMixboxLocation) {
+            gl.uniform1i(useMixboxLocation, this.useMixbox ? 1 : 0);
+        }
+
+        // Use brushOpacity for alpha, not line.color[3]
+        gl.uniform4fv(this.colorUniformLocation, [line.color[0], line.color[1], line.color[2], this.brushOpacity]);
         gl.uniform2f(this.resolutionUniformLocation, canvasWidth, canvasHeight); gl.bindVertexArray(this.vao);
 
         // Upload position data
@@ -260,6 +272,41 @@ export class Brush {
         this.color = color;
         const gl = this.gl;
         gl.useProgram(this.program);
-        gl.uniform4fv(this.colorUniformLocation, this.color);
+        // Use brushOpacity for alpha
+        gl.uniform4fv(this.colorUniformLocation, [color[0], color[1], color[2], this.brushOpacity]);
+    }
+
+    /**
+     * Sets the opacity of the brush (0-1)
+     */
+    public setOpacity(opacity: number) {
+        this.brushOpacity = Math.max(0, Math.min(1, opacity));
+    }
+
+    /**
+     * Sets the size of the brush
+     * 
+     * @public
+     * @param {number} size - The new size of the brush
+     */
+    public setSize(size: number) {
+        this.size = Math.max(1, size);
+    }
+
+    /**
+     * Sets the mixing mode (MIXBOX or RGB)
+     * 
+     * @public
+     * @param {boolean} useMixbox - Whether to use MIXBOX (true) or RGB (false)
+     */
+    public setMixingMode(useMixbox: boolean) {
+        this.useMixbox = useMixbox;
+        // Update the uniform in the shader program
+        const gl = this.gl;
+        gl.useProgram(this.program);
+        const useMixboxLocation = gl.getUniformLocation(this.program, "u_useMixbox");
+        if (useMixboxLocation) {
+            gl.uniform1i(useMixboxLocation, useMixbox ? 1 : 0);
+        }
     }
 }
