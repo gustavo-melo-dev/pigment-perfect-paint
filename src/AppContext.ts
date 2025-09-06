@@ -3,6 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { attachEventListeners } from "./events";
 import { Line } from "./Line";
 import { createFullscreenQuad } from "./webgl/fullscreenQuad";
+import { setupUIElements } from "./ui";
 
 export class AppContext {
     static brush: Brush;
@@ -38,6 +39,8 @@ export class AppContext {
         this.screenVAO = vao;
         this.screenProgram = program;
 
+        // set the ui elements
+        setupUIElements();
 
         // attach html event handlers
         attachEventListeners();
