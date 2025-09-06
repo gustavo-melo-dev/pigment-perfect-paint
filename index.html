@@ -43,6 +43,18 @@
         height: 50%;
         /* background-color: rgba(255, 0, 0, 0.1); */
         z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+    }
+
+    #palette-area-spacer {
+        height: 55%;
+    }
+
+    #color-palette {
+        flex-grow: 1;
+        min-height: 60%;
     }
 
     #canvas-area {
@@ -55,24 +67,197 @@
         /* background-color: rgba(0, 0, 255, 0.1); */
     }
 
-    #frame {
+    #ui {
         position: fixed;
         top: 0;
         left: 0;
         width: 25%;
         height: 100%;
         background: rgb(199, 199, 199);
-        z-index: 0;
+    }
+
+    #ui-controls {
+        position: fixed;
+        top: 55%;
+        left: 2%;
+        width: 21%;
+        height: auto;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* UI Controls */
+    .control-container {
+        position: relative;
+        background: #fff;
+        padding: 8px 16px;
+        margin: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px #0002;
+    }
+
+    /* Brush Opacity Slider */
+    #brush-opacity-container {
+        margin-top: 20px;
+    }
+
+    #brush-opacity {
+        vertical-align: middle;
+        width: 80%;
+    }
+
+    /* Brush Size Buttons */
+    #brush-size-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .brush-size-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid #ccc;
+        background: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        transition: all 0.2s;
+    }
+
+    .brush-size-btn:hover {
+        background: #f0f0f0;
+    }
+
+    .brush-size-btn.active {
+        background: #007bff;
+        color: white;
+        border-color: #0056b3;
+    }
+
+    /* Toggle Button */
+    .toggle-btn {
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        background: #fff;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s;
+        min-width: 100px;
+        text-align: center;
+    }
+
+    .toggle-btn:hover {
+        background: #f0f0f0;
+    }
+
+    .toggle-btn.active {
+        background: #007bff;
+        color: white;
+        border-color: #0056b3;
+    }
+
+    /* Color Palette Styles */
+    #color-palette-container {
+        margin-bottom: 10px;
+    }
+
+    #pigment-label {
+        display: block;
+        min-height: 1.3em;
+        margin-bottom: 8px;
+    }
+
+    .color-palette {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .color-swatch {
+        aspect-ratio: 1;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: transform 0.1s ease;
+        border: 2px solid #ccc;
+        position: relative;
+    }
+
+    .color-swatch:hover {
+        transform: scale(1.05);
     }
 </style>
 
 <body>
-    <div id="frame"></div>
+    <div id="ui">
+    </div>
+    <div id="ui-controls">
+        <!-- Pigments -->
+        <div id="color-palette-container" class="control-container">
+            <label id="pigment-label"></label>
+            <div class="color-palette">
+                <!-- Basic Colors -->
+                <div class="color-swatch" data-color="255, 39, 2" data-name="Cadmium Red"
+                    style="background-color: rgb(255, 39, 2);"></div>
+
+                <div class="color-swatch" data-color="254, 236, 0" data-name="Cadmium Yellow"
+                    style="background-color: rgb(254, 236, 0);"></div>
+
+                <div class="color-swatch" data-color="25, 0, 89" data-name="Ultramarine Blue"
+                    style="background-color: rgb(25, 0, 89);"></div>
+
+                <div class="color-swatch" data-color="16,15,17" data-name="Ivory Black"
+                    style="background-color: rgb(16,15,17);"></div>
+
+                <div class="color-swatch" data-color="248,249,248" data-name="Titanium White"
+                    style="background-color: rgb(248,249,248);"></div>
+            </div>
+        </div>
+
+        <!-- Brush Opacity Slider -->
+        <div id="brush-opacity-container" class="control-container">
+            <label for="brush-opacity">Brush Opacity:</label>
+            <input type="range" id="brush-opacity" min="0" max="100" value="40">
+            <span id="brush-opacity-value">40</span>
+        </div>
+
+        <!-- Brush Size Buttons -->
+        <div id="brush-size-container" class="control-container">
+            <label>Brush Size:</label>
+            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+                <button class="brush-size-btn" data-size="1">1</button>
+                <button class="brush-size-btn" data-size="2">2</button>
+                <button class="brush-size-btn" data-size="4">4</button>
+                <button class="brush-size-btn" data-size="6">6</button>
+                <button class="brush-size-btn" data-size="8">8</button>
+                <button class="brush-size-btn" data-size="10">10</button>
+                <button class="brush-size-btn" data-size="12">12</button>
+            </div>
+        </div>
+
+        <!-- Color Mixing Mode Toggle -->
+        <div id="mixing-mode-container" class="control-container">
+            <label>Color Mixing Mode:</label>
+            <div style="margin-top: 8px; display: flex; align-items: center;">
+                <button id="mixing-mode-toggle" class="toggle-btn active" data-mode="mixbox">MIXBOX</button>
+                <span style="margin: 0 5px; font-size: 12px; color: #666;">Realistic color mixing</span>
+            </div>
+        </div>
+    </div>
 
     <div id="app">
         <div id="palette-area">
+            <!-- color palette will go here -->
         </div>
         <div id="canvas-area">
+            <!-- Canvas will be rendered here -->
         </div>
     </div>
 

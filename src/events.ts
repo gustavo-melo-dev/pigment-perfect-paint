@@ -56,13 +56,41 @@ function windowResize() {
 export function windowKeydown() {
     return (e: KeyboardEvent) => {
         const colorMap: { [key: string]: [number, number, number, number] } = {
-            'r': [1, 0, 0, 0.3],
-            'y': [1, 1, 0, 0.3],
-            'b': [0, 0, 1, 0.3],
+            'r': [1, 0, 0, 1],
+            'y': [1, 1, 0, 1],
+            'b': [0, 0, 1, 1],
         };
 
         if (colorMap[e.key.toLowerCase()]) {
             AppContext.changeBrushColor(colorMap[e.key.toLowerCase()]);
+        }
+    };
+}
+
+/**
+ * Right-click event handler - picks color from palette area
+ */
+function paletteRightClick() {
+    return (e: MouseEvent) => {
+        e.preventDefault();
+
+        // Get canvas coordinates
+        const canvasElement = document.querySelector("canvas") as HTMLCanvasElement;
+        const rect = canvasElement.getBoundingClientRect();
+
+        // Convert to canvas coordinates
+        const scaleX = canvasElement.width / rect.width;
+        const scaleY = canvasElement.height / rect.height;
+
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // Pick the color at this position
+        const color = AppContext.webglCanvas.pickColor(x, y);
+        if (color) {
+            // Convert to brush color format with alpha
+            const brushColor: [number, number, number, number] = [color[0], color[1], color[2], 0.3];
+            AppContext.changeBrushColor(brushColor);
         }
     };
 }
@@ -88,4 +116,13 @@ export function attachEventListeners() {
     paletteElement.addEventListener("mousemove", canvasMouseMove());
     paletteElement.addEventListener("mouseup", canvasMouseUp());
     paletteElement.addEventListener("mouseout", canvasMouseOut());
+
+    // Add right-click color picking to palette area
+    paletteElement.addEventListener("contextmenu", paletteRightClick());
+
+    window.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "pen") {
+            console.log("Pen down", e.pressure, e.tiltX, e.tiltY);
+        }
+    });
 }
