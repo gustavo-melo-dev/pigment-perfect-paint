@@ -137,11 +137,11 @@ export class AppContext {
         this.brush.setColor(color);
     }
 
-    static toggleMixingMode() {
-        this.useMixbox = !this.useMixbox;
-        this.brush.setMixingMode(this.useMixbox);
-        // Redraw all lines with the new mixing mode
-        this.redrawAll();
+    static toggleDisplayMode() {
+        this.webglCanvas.toggleDisplayMode();
+        console.log("Display mode toggled to:", this.webglCanvas.displayMode);
+    }
+
     }
 
 }

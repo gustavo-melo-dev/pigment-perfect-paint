@@ -240,6 +240,27 @@ export class Brush {
         const useMixboxLocation = gl.getUniformLocation(this.program, "u_useMixbox");
         if (useMixboxLocation) {
             gl.uniform1i(useMixboxLocation, this.useMixbox ? 1 : 0);
+        // Draw to BOTH canvases: mixbox and RGB
+        const modes: ('mixbox' | 'rgb')[] = ['mixbox', 'rgb'];
+
+        for (const mode of modes) {
+            const prevTex = canvas.getPreviousTexture(mode);
+            const destFbo = canvas.getActiveFramebuffer(mode);
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, destFbo);
+            gl.viewport(0, 0, canvasWidth, canvasHeight);
+
+            // Copy previous texture
+            gl.disable(gl.SCISSOR_TEST);
+            gl.useProgram(this.copyProgram);
+            gl.bindVertexArray(this.copyVao);
+            bindTexture(gl, prevTex, 0);
+            gl.uniform1i(this.copyPreviousTextureUniformLocation, 0);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+            // Draw stroke with appropriate mixing mode
+            enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
+            gl.useProgram(this.program);
         }
 
         // Use brushOpacity for alpha, not line.color[3]
@@ -253,6 +274,8 @@ export class Brush {
         // Upload brush texture coordinate data
         gl.bindBuffer(gl.ARRAY_BUFFER, this.brushTexCoordVbo);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(brushTexCoords), gl.STREAM_DRAW);
+            // Set mix_mode based on which canvas we're rendering to
+            gl.uniform1i(gl.getUniformLocation(this.program, "mix_mode"), mode === 'mixbox' ? 0 : 1);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, stripVerts.length / 2);
         gl.bindVertexArray(null);
@@ -304,9 +327,10 @@ export class Brush {
         // Update the uniform in the shader program
         const gl = this.gl;
         gl.useProgram(this.program);
-        const useMixboxLocation = gl.getUniformLocation(this.program, "u_useMixbox");
-        if (useMixboxLocation) {
-            gl.uniform1i(useMixboxLocation, useMixbox ? 1 : 0);
+        const mixModeLocation = gl.getUniformLocation(this.program, "mix_mode");
+        if (mixModeLocation) {
+            // In the new shader: MIXMODE_MIXBOX = 0, MIXMODE_RGB = 1
+            gl.uniform1i(mixModeLocation, useMixbox ? 0 : 1);
         }
     }
 }

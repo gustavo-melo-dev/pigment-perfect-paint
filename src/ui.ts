@@ -150,11 +150,12 @@ function setupMixingModeToggle() {
     const mixingModeToggle = document.getElementById('mixing-mode-toggle') as HTMLButtonElement;
     if (mixingModeToggle) {
         mixingModeToggle.addEventListener('click', () => {
-            // Toggle the mode
-            AppContext.toggleMixingMode();
+            // Toggle the display mode (instant visual switch)
+            AppContext.toggleDisplayMode();
 
             // Update the button text and style
-            if (AppContext.useMixbox) {
+            const currentMode = AppContext.webglCanvas.displayMode;
+            if (currentMode === 'mixbox') {
                 mixingModeToggle.textContent = 'MIXBOX';
                 mixingModeToggle.classList.add('active');
                 mixingModeToggle.setAttribute('data-mode', 'mixbox');

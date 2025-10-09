@@ -12,14 +12,18 @@ export class Canvas {
     readonly canvas: HTMLCanvasElement;
     readonly gl: WebGL2RenderingContext;
 
-    // Replace single framebuffer with two for ping-pong rendering
-    private framebuffers!: WebGLFramebuffer[];
-    private textures!: WebGLTexture[];
+    // Dual canvas system: one for mixbox, one for RGB
+    // Each has its own ping-pong pair
+    private mixboxFramebuffers!: WebGLFramebuffer[];
+    private mixboxTextures!: WebGLTexture[];
+    private rgbFramebuffers!: WebGLFramebuffer[];
+    private rgbTextures!: WebGLTexture[];
 
     // Background handling
     private background!: Background;
 
     public activeIndex: number = 0; // index we will sample FROM after a stroke is drawn into the other
+    public displayMode: 'mixbox' | 'rgb' = 'mixbox'; // Which canvas to display
 
     /**
      * Creates a new Canvas instance with a WebGL2 context.
@@ -44,35 +48,82 @@ export class Canvas {
     }
 
     /**
-     * Initializes the framebuffer and its texture for rendering the canvas.
+     * Initializes the framebuffers and textures for dual-canvas rendering.
+     * Creates two complete ping-pong pairs: one for mixbox, one for RGB.
      */
     private initFramebuffers(): void {
         const gl = this.gl;
-        this.textures = [gl.createTexture()!, gl.createTexture()!];
-        this.framebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
 
-        for (let i = 0; i < 2; i++) {
-            gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.canvas.width, this.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
-            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[i], 0);
+        // Initialize mixbox canvas pair
+        this.mixboxTextures = [gl.createTexture()!, gl.createTexture()!];
+        this.mixboxFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
 
-            // Clear to transparent first
-            gl.clearColor(0, 0, 0, 0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            this.background.render();
+        // Initialize RGB canvas pair
+        this.rgbTextures = [gl.createTexture()!, gl.createTexture()!];
+        this.rgbFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
+
+        // Setup both pairs
+        const pairs = [
+            { textures: this.mixboxTextures, framebuffers: this.mixboxFramebuffers },
+            { textures: this.rgbTextures, framebuffers: this.rgbFramebuffers }
+        ];
+
+        for (const pair of pairs) {
+            for (let i = 0; i < 2; i++) {
+                gl.bindTexture(gl.TEXTURE_2D, pair.textures[i]);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.canvas.width, this.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, pair.framebuffers[i]);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pair.textures[i], 0);
+
+                // Clear to transparent first
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                this.background.render();
+            }
         }
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.bindTexture(gl.TEXTURE_2D, null);
-    }    // Accessors for ping-pong
-    public getActiveTexture(): WebGLTexture { return this.textures[this.activeIndex]; }
-    public getPreviousTexture(): WebGLTexture { return this.textures[1 - this.activeIndex]; }
-    public getActiveFramebuffer(): WebGLFramebuffer { return this.framebuffers[this.activeIndex]; }
-    public getInactiveFramebuffer(): WebGLFramebuffer { return this.framebuffers[1 - this.activeIndex]; }
-    public getInactiveTexture(): WebGLTexture { return this.textures[1 - this.activeIndex]; }
+    }    // Accessors for ping-pong - now returns the appropriate canvas based on mode
+    public getActiveTexture(mode?: 'mixbox' | 'rgb'): WebGLTexture {
+        const textures = (mode || this.displayMode) === 'mixbox' ? this.mixboxTextures : this.rgbTextures;
+        return textures[this.activeIndex];
+    }
+
+    public getPreviousTexture(mode?: 'mixbox' | 'rgb'): WebGLTexture {
+        const textures = (mode || this.displayMode) === 'mixbox' ? this.mixboxTextures : this.rgbTextures;
+        return textures[1 - this.activeIndex];
+    }
+
+    public getActiveFramebuffer(mode?: 'mixbox' | 'rgb'): WebGLFramebuffer {
+        const framebuffers = (mode || this.displayMode) === 'mixbox' ? this.mixboxFramebuffers : this.rgbFramebuffers;
+        return framebuffers[this.activeIndex];
+    }
+
+    public getInactiveFramebuffer(mode?: 'mixbox' | 'rgb'): WebGLFramebuffer {
+        const framebuffers = (mode || this.displayMode) === 'mixbox' ? this.mixboxFramebuffers : this.rgbFramebuffers;
+        return framebuffers[1 - this.activeIndex];
+    }
+
+    public getInactiveTexture(mode?: 'mixbox' | 'rgb'): WebGLTexture {
+        const textures = (mode || this.displayMode) === 'mixbox' ? this.mixboxTextures : this.rgbTextures;
+        return textures[1 - this.activeIndex];
+    }
+
     public advancePingPong(): void { this.activeIndex = 1 - this.activeIndex; }
+
+    // Toggle between mixbox and RGB display
+    public toggleDisplayMode(): void {
+        this.displayMode = this.displayMode === 'mixbox' ? 'rgb' : 'mixbox';
+        this.redrawScreen();
+    }
+
+    public setDisplayMode(mode: 'mixbox' | 'rgb'): void {
+        this.displayMode = mode;
+        this.redrawScreen();
+    }
 
     /**
      * Resizes the canvas and updates the WebGL viewport and framebuffer texture.
@@ -85,18 +136,28 @@ export class Canvas {
         this.canvas.width = width;
         this.canvas.height = height;
         gl.viewport(0, 0, width, height);
-        for (let i = 0; i < 2; i++) {
-            gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
 
-            // clear to transparent
-            gl.clearColor(0, 0, 0, 0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
+        // Resize both canvas pairs
+        const pairs = [
+            { textures: this.mixboxTextures, framebuffers: this.mixboxFramebuffers },
+            { textures: this.rgbTextures, framebuffers: this.rgbFramebuffers }
+        ];
 
-            // put in the background texture
-            this.background.render();
+        for (const pair of pairs) {
+            for (let i = 0; i < 2; i++) {
+                gl.bindTexture(gl.TEXTURE_2D, pair.textures[i]);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, pair.framebuffers[i]);
+
+                // clear to transparent
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                // put in the background texture
+                this.background.render();
+            }
         }
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
@@ -106,16 +167,26 @@ export class Canvas {
      */
     public clear(): void {
         const gl = this.gl;
-        for (let i = 0; i < 2; i++) {
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[i]);
 
-            // clear to transparent
-            gl.clearColor(0, 0, 0, 0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
+        // Clear both canvas pairs
+        const pairs = [
+            { textures: this.mixboxTextures, framebuffers: this.mixboxFramebuffers },
+            { textures: this.rgbTextures, framebuffers: this.rgbFramebuffers }
+        ];
 
-            // put in the background texture
-            this.background.render();
+        for (const pair of pairs) {
+            for (let i = 0; i < 2; i++) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, pair.framebuffers[i]);
+
+                // clear to transparent
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                // put in the background texture
+                this.background.render();
+            }
         }
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
