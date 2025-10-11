@@ -1,38 +1,82 @@
 import { AppContext } from "./AppContext";
 
 /**
- * Mouse down event handler - starts a new line
+ * Pointer down event handler - starts a new line
  */
-function canvasMouseDown() {
-    return (e: MouseEvent) => {
+function canvasPointerDown() {
+    return (e: PointerEvent) => {
         e.preventDefault();
-        AppContext.startDrawing(e.clientX, e.clientY);
+
+        // Convert client coordinates to canvas coordinates
+        const canvasElement = AppContext.canvasElement;
+        const rect = canvasElement.getBoundingClientRect();
+        const scaleX = canvasElement.width / rect.width;
+        const scaleY = canvasElement.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        AppContext.startDrawing(x, y);
+    };
+}
+
+function palettePointerDown() {
+    return (e: PointerEvent) => {
+        e.preventDefault();
+
+        // Convert client coordinates to canvas coordinates
+        const canvasElement = AppContext.canvasElement;
+        const rect = canvasElement.getBoundingClientRect();
+        const scaleX = canvasElement.width / rect.width;
+        const scaleY = canvasElement.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // Check if Alt key is pressed
+        if (e.altKey) {
+            const color = AppContext.webglCanvas.pickColor(x, y);
+            if (color) {
+                // Convert to brush color format with alpha
+                const brushColor: [number, number, number, number] = [color[0], color[1], color[2], 0.3];
+                AppContext.changeBrushColor(brushColor);
+            }
+            return; // Exit early to avoid starting a drawing action
+        }
+
+        AppContext.startDrawing(x, y);
     };
 }
 
 /**
- * Mouse move event handler - adds points to current line and draws incrementally
+ * Pointer move event handler - adds points to current line and draws incrementally
  */
-function canvasMouseMove() {
-    return (e: MouseEvent) => {
+function canvasPointerMove() {
+    return (e: PointerEvent) => {
         e.preventDefault();
-        AppContext.continueDrawing(e.clientX, e.clientY);
+        // Convert client coordinates to canvas coordinates
+        const canvasElement = AppContext.canvasElement;
+        const rect = canvasElement.getBoundingClientRect();
+        const scaleX = canvasElement.width / rect.width;
+        const scaleY = canvasElement.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        AppContext.continueDrawing(x, y);
     };
 }
 
 /**
- * Mouse up event handler - finalizes the current line
+ * Pointer up event handler - finalizes the current line
  */
-function canvasMouseUp() {
+function canvasPointerUp() {
     return () => {
         AppContext.finalizeCurrentLine();
     };
 }
 
 /**
- * Mouse out event handler - stops drawing when the mouse leaves the canvas designated areas
+ * Pointer out event handler - stops drawing when the mouse leaves the canvas designated areas
  */
-function canvasMouseOut() {
+function canvasPointerOut() {
     return () => {
         AppContext.finalizeCurrentLine();
     };
@@ -51,18 +95,35 @@ function windowResize() {
 
 
 /**
- * Keydown event handler - changes brush color
+ * Keydown event handler - handle keyboard shortcuts
  */
-export function windowKeydown() {
+function windowKeydown() {
     return (e: KeyboardEvent) => {
-        const colorMap: { [key: string]: [number, number, number, number] } = {
-            'r': [1, 0, 0, 1],
-            'y': [1, 1, 0, 1],
-            'b': [0, 0, 1, 1],
-        };
+        // Prevent default browser zoom behavior
+        if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_')) {
+            e.preventDefault();
+            return;
+        }
+        // Prevent opening the console
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
+            e.preventDefault();
+            return;
+        }
+        if (e.key === 'F12') {
+            e.preventDefault();
+            return;
+        }
+    };
+}
 
-        if (colorMap[e.key.toLowerCase()]) {
-            AppContext.changeBrushColor(colorMap[e.key.toLowerCase()]);
+/**
+ * Wheel event handler - prevents zoom
+ */
+function windowWheel() {
+    return (e: WheelEvent) => {
+        // Prevent zoom when Ctrl is held (or Cmd on Mac)
+        if (e.ctrlKey) {
+            e.preventDefault();
         }
     };
 }
@@ -96,33 +157,38 @@ function paletteRightClick() {
 }
 
 /**
+ * Right-click event handler for canvas - prevents context menu
+ */
+function canvasRightClick() {
+    return (e: MouseEvent) => {
+        e.preventDefault();
+    };
+}
+
+/**
  * Attaches all event listeners to their respective elements
  */
 export function attachEventListeners() {
     // window
     window.addEventListener("resize", windowResize());
     window.addEventListener("keydown", windowKeydown());
+    window.addEventListener("wheel", windowWheel(), { passive: false });
 
     // canvas
     const canvasAreaElement = document.getElementById("canvas-area") as HTMLDivElement;
-    canvasAreaElement.addEventListener("mousedown", canvasMouseDown());
-    canvasAreaElement.addEventListener("mousemove", canvasMouseMove());
-    canvasAreaElement.addEventListener("mouseup", canvasMouseUp());
-    canvasAreaElement.addEventListener("mouseout", canvasMouseOut());
+    canvasAreaElement.addEventListener("pointerdown", canvasPointerDown());
+    canvasAreaElement.addEventListener("pointermove", canvasPointerMove());
+    canvasAreaElement.addEventListener("pointerup", canvasPointerUp());
+    canvasAreaElement.addEventListener("pointerout", canvasPointerOut());
+    canvasAreaElement.addEventListener("contextmenu", canvasRightClick());
 
     // palette
     const paletteElement = document.getElementById("palette-area") as HTMLDivElement;
-    paletteElement.addEventListener("mousedown", canvasMouseDown());
-    paletteElement.addEventListener("mousemove", canvasMouseMove());
-    paletteElement.addEventListener("mouseup", canvasMouseUp());
-    paletteElement.addEventListener("mouseout", canvasMouseOut());
+    paletteElement.addEventListener("pointerdown", palettePointerDown());
+    paletteElement.addEventListener("pointermove", canvasPointerMove());
+    paletteElement.addEventListener("pointerup", canvasPointerUp());
+    paletteElement.addEventListener("pointerout", canvasPointerOut());
 
-    // Add right-click color picking to palette area
+    // Add right-click and alt+click color picking to palette area
     paletteElement.addEventListener("contextmenu", paletteRightClick());
-
-    window.addEventListener("pointerdown", (e) => {
-        if (e.pointerType === "pen") {
-            console.log("Pen down", e.pressure, e.tiltX, e.tiltY);
-        }
-    });
 }

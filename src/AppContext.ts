@@ -61,9 +61,10 @@ export class AppContext {
         const pos = { x, y };
         this.currentLine.addPoint(pos);
 
-        this.brush.drawIncremental(this.currentLine, this.webglCanvas);
-
-        this.redrawScreen();
+        if (this.currentLine.points.length >= 4) {
+            this.brush.drawIncremental(this.currentLine, this.webglCanvas);
+            this.redrawScreen();
+        }
     }
 
     static finalizeCurrentLine() {
@@ -135,12 +136,12 @@ export class AppContext {
     static changeBrushColor(color: [number, number, number, number]) {
         if (this.drawing) return; // Don't change color while drawing
         this.brush.setColor(color);
+        // Update the UI color indicator to reflect the new brush color
+        updateColorIndicator();
     }
 
     static toggleDisplayMode() {
         this.webglCanvas.toggleDisplayMode();
-    }
-
     }
 
     static setBrushFlow(flow: number) {

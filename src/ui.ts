@@ -1,6 +1,21 @@
 import { AppContext } from './AppContext.js';
 
 /**
+ * Update the current color indicator to show the brush's actual color
+ */
+export function updateColorIndicator() {
+    const currentColorIndicator = document.getElementById('current-color-indicator');
+    if (currentColorIndicator && AppContext.brush) {
+        const color = AppContext.brush.color;
+        // Convert from 0-1 to 0-255
+        const r = Math.round(color[0] * 255);
+        const g = Math.round(color[1] * 255);
+        const b = Math.round(color[2] * 255);
+        currentColorIndicator.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+    }
+}
+
+/**
  * Setup brush opacity slider functionality
  */
 function setBrushSliders() {
@@ -84,7 +99,7 @@ function setupBrushSizeButtons() {
 function setupColorPalette() {
     const colorSwatches = document.querySelectorAll('.color-swatch');
     let activeColor: HTMLElement | null = null;
-    const pigmentLabel = document.getElementById('pigment-label');
+    const pigmentLabelText = document.getElementById('pigment-label-text');
 
     function setActiveColor(colorElement: HTMLElement) {
         // Remove active class from previous color
@@ -113,21 +128,24 @@ function setupColorPalette() {
 
             // Use the current opacity instead of the one defined in the color
             AppContext.changeBrushColor([r, g, b, AppContext.brush.brushOpacity]);
+
+            // Update the color indicator to reflect the actual brush color
+            updateColorIndicator();
         }
     }
 
     // Update the label with the color name
     function updateLabelWithColorName(colorElement: HTMLElement) {
         const colorName = colorElement.getAttribute('data-name');
-        if (pigmentLabel && colorName) {
-            pigmentLabel.textContent = colorName;
+        if (pigmentLabelText && colorName) {
+            pigmentLabelText.textContent = colorName;
         }
     }
 
     // Clear the label
     function clearLabel() {
-        if (pigmentLabel) {
-            pigmentLabel.textContent = "";
+        if (pigmentLabelText) {
+            pigmentLabelText.textContent = "";
         }
     }
 
@@ -190,4 +208,6 @@ export function setupUIElements() {
     setupBrushSizeButtons();
     setupColorPalette();
     setupMixingModeToggle();
+    // Set initial color indicator
+    updateColorIndicator();
 }
