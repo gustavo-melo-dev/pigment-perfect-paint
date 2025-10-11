@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
     <title>Vite + TS</title>
 </head>
 
@@ -73,7 +73,7 @@
         left: 0;
         width: 25%;
         height: 100%;
-        background: rgb(199, 199, 199);
+        background: rgb(231, 231, 231);
     }
 
     #ui-controls {
@@ -81,11 +81,13 @@
         top: 55%;
         left: 2%;
         width: 21%;
-        height: auto;
         z-index: 10;
         display: flex;
         flex-direction: column;
         align-items: stretch;
+        height: 100%;
+        max-height: 43vh;
+        overflow-y: auto;
     }
 
     /* UI Controls */
@@ -98,9 +100,19 @@
         box-shadow: 0 2px 8px #0002;
     }
 
-    /* Brush Opacity Slider */
-    #brush-opacity-container {
-        margin-top: 20px;
+    /* Brush Settings Container */
+    #brush-settings-container .brush-setting {
+        margin-bottom: 16px;
+    }
+
+    #brush-settings-container .brush-setting:last-child {
+        margin-bottom: 0;
+    }
+
+    #brush-settings-container .brush-setting label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
     }
 
     #brush-opacity {
@@ -108,12 +120,16 @@
         width: 80%;
     }
 
-    /* Brush Size Buttons */
-    #brush-size-container {
+    #brush-flow {
+        vertical-align: middle;
+        width: 80%;
+    }
+
+    .brush-size-buttons {
+        margin-top: 8px;
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-        align-items: center;
     }
 
     .brush-size-btn {
@@ -169,9 +185,27 @@
     }
 
     #pigment-label {
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
         min-height: 1.3em;
         margin-bottom: 8px;
+    }
+
+    #current-color-indicator {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid #ccc;
+        flex-shrink: 0;
+        background-color: #fff;
+        order: 2;
+    }
+
+    #pigment-label-text {
+        order: 1;
+        flex-grow: 1;
     }
 
     .color-palette {
@@ -193,15 +227,69 @@
     .color-swatch:hover {
         transform: scale(1.05);
     }
+
+    /* Advanced Parameters Styling */
+    #advanced-params-container {
+        background-color: #f5f5f5;
+    }
+
+    #advanced-params-container h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 16px;
+        color: #333;
+    }
+
+    .param-slider {
+        margin-bottom: 12px;
+    }
+
+    .param-slider label {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 14px;
+    }
+
+    .param-slider input[type="range"] {
+        width: 80%;
+        vertical-align: middle;
+    }
+
+    .param-slider span {
+        margin-left: 8px;
+        font-size: 12px;
+        color: #666;
+    }
+
+    .param-dropdown {
+        margin-bottom: 12px;
+    }
+
+    .param-dropdown label {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 14px;
+    }
+
+    .param-dropdown select {
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        background-color: white;
+    }
 </style>
 
 <body>
     <div id="ui">
     </div>
+
     <div id="ui-controls">
         <!-- Pigments -->
         <div id="color-palette-container" class="control-container">
-            <label id="pigment-label"></label>
+            <label id="pigment-label">
+                <div id="current-color-indicator"></div>
+                <span id="pigment-label-text"></span>
+            </label>
             <div class="color-palette">
                 <!-- Basic Colors -->
                 <div class="color-swatch" data-color="255, 39, 2" data-name="Cadmium Red"
@@ -221,24 +309,31 @@
             </div>
         </div>
 
-        <!-- Brush Opacity Slider -->
-        <div id="brush-opacity-container" class="control-container">
-            <label for="brush-opacity">Brush Opacity:</label>
-            <input type="range" id="brush-opacity" min="0" max="100" value="40">
-            <span id="brush-opacity-value">40</span>
-        </div>
+        <!-- Brush Settings (Opacity, Flow, Size) -->
+        <div id="brush-settings-container" class="control-container">
+            <div class="brush-setting">
+                <label for="brush-opacity">Opacity:</label>
+                <input type="range" id="brush-opacity" min="0" max="100" value="100">
+                <span id="brush-opacity-value">100</span>
+            </div>
 
-        <!-- Brush Size Buttons -->
-        <div id="brush-size-container" class="control-container">
-            <label>Brush Size:</label>
-            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
-                <button class="brush-size-btn" data-size="1">1</button>
-                <button class="brush-size-btn" data-size="2">2</button>
-                <button class="brush-size-btn" data-size="4">4</button>
-                <button class="brush-size-btn" data-size="6">6</button>
-                <button class="brush-size-btn" data-size="8">8</button>
-                <button class="brush-size-btn" data-size="10">10</button>
-                <button class="brush-size-btn" data-size="12">12</button>
+            <div class="brush-setting">
+                <label for="brush-flow">Flow:</label>
+                <input type="range" id="brush-flow" min="0" max="1" step="0.01" value="0.1">
+                <span id="brush-flow-value">0.34</span>
+            </div>
+
+            <div class="brush-setting">
+                <label>Brush Size:</label>
+                <div class="brush-size-buttons">
+                    <button class="brush-size-btn" data-size="1">1</button>
+                    <button class="brush-size-btn" data-size="2">2</button>
+                    <button class="brush-size-btn" data-size="4">4</button>
+                    <button class="brush-size-btn" data-size="6">6</button>
+                    <button class="brush-size-btn" data-size="8">8</button>
+                    <button class="brush-size-btn" data-size="10">10</button>
+                    <button class="brush-size-btn" data-size="12">12</button>
+                </div>
             </div>
         </div>
 

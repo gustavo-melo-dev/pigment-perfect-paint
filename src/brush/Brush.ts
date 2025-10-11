@@ -35,6 +35,7 @@ export class Brush {
     public color: [number, number, number, number]; // the RGBA color that is loaded in the brush
     public size: number; // the size of the brush
     public brushOpacity: number = 1.0; // the opacity of the brush (0-1)
+    public flow: number = 0.1; // brush flow (0-1)
     private useMixbox: boolean = true; // Whether to use MIXBOX or RGB lerping
 
 
@@ -266,6 +267,7 @@ export class Brush {
         // Use brushOpacity for alpha, not line.color[3]
         gl.uniform4fv(this.colorUniformLocation, [line.color[0], line.color[1], line.color[2], this.brushOpacity]);
         gl.uniform2f(this.resolutionUniformLocation, canvasWidth, canvasHeight); gl.bindVertexArray(this.vao);
+            gl.uniform1f(gl.getUniformLocation(this.program, "flow"), this.flow);
 
         // Upload position data
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);

@@ -3,16 +3,17 @@ import { AppContext } from './AppContext.js';
 /**
  * Setup brush opacity slider functionality
  */
-function setupBrushOpacitySlider() {
+function setBrushSliders() {
+    // Opacity slider
     const opacitySlider = document.getElementById('brush-opacity') as HTMLInputElement;
     const opacityValue = document.getElementById('brush-opacity-value') as HTMLElement;
     if (opacitySlider && opacityValue) {
-        // Ensure the slider starts at 40
-        opacitySlider.value = "40";
-        opacityValue.textContent = "40";
+        // Ensure the slider starts at 100
+        opacitySlider.value = "100";
+        opacityValue.textContent = "100";
 
-        // Set initial brush opacity to 40%
-        AppContext.brush.setOpacity(0.4);
+        // Set initial brush opacity to 100%
+        AppContext.brush.setOpacity(1.0);
 
         // Add the event listener for when the user changes the slider
         opacitySlider.addEventListener('input', () => {
@@ -20,6 +21,22 @@ function setupBrushOpacitySlider() {
             opacityValue.textContent = value.toString();
             // Set brush opacity (0-1)
             AppContext.brush.setOpacity(value / 100);
+        });
+    }
+
+    // Flow slider
+    const flowSlider = document.getElementById('brush-flow') as HTMLInputElement;
+    const flowValue = document.getElementById('brush-flow-value') as HTMLElement;
+    if (flowSlider && flowValue) {
+        // Set initial values to match default of 0.34
+        flowSlider.value = "0.34";
+        flowValue.textContent = "0.34";
+        AppContext.setBrushFlow(0.34);
+
+        flowSlider.addEventListener('input', () => {
+            const value = Number(flowSlider.value);
+            flowValue.textContent = value.toFixed(2);
+            AppContext.setBrushFlow(value);
         });
     }
 }
@@ -169,7 +186,7 @@ function setupMixingModeToggle() {
 }
 
 export function setupUIElements() {
-    setupBrushOpacitySlider();
+    setBrushSliders();
     setupBrushSizeButtons();
     setupColorPalette();
     setupMixingModeToggle();

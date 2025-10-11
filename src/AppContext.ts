@@ -3,7 +3,7 @@ import { Canvas } from "./canvas/Canvas";
 import { attachEventListeners } from "./events";
 import { Line } from "./Line";
 import { createFullscreenQuad } from "./webgl/fullscreenQuad";
-import { setupUIElements } from "./ui";
+import { setupUIElements, updateColorIndicator } from "./ui";
 
 export class AppContext {
     static brush: Brush;
@@ -139,9 +139,12 @@ export class AppContext {
 
     static toggleDisplayMode() {
         this.webglCanvas.toggleDisplayMode();
-        console.log("Display mode toggled to:", this.webglCanvas.displayMode);
     }
 
     }
 
+    static setBrushFlow(flow: number) {
+        if (this.drawing) return;
+        this.brush.setFlow(flow);
+    }
 }
