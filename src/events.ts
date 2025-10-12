@@ -99,6 +99,14 @@ function windowResize() {
  */
 function windowKeydown() {
     return (e: KeyboardEvent) => {
+        // Prevent Alt key from opening browser menu bar
+        if (e.altKey) {
+            e.preventDefault();
+        }
+        if (e.key === 'Alt') {
+            e.preventDefault();
+            return;
+        }
         // Prevent default browser zoom behavior
         if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_')) {
             e.preventDefault();
@@ -112,6 +120,18 @@ function windowKeydown() {
         if (e.key === 'F12') {
             e.preventDefault();
             return;
+        }
+    };
+}
+
+/**
+ * Keyup event handler - prevent Alt from triggering menu
+ */
+function windowKeyup() {
+    return (e: KeyboardEvent) => {
+        // Prevent Alt key from opening browser menu bar
+        if (e.key === 'Alt' || e.altKey) {
+            e.preventDefault();
         }
     };
 }
@@ -172,6 +192,7 @@ export function attachEventListeners() {
     // window
     window.addEventListener("resize", windowResize());
     window.addEventListener("keydown", windowKeydown());
+    window.addEventListener("keyup", windowKeyup());
     window.addEventListener("wheel", windowWheel(), { passive: false });
 
     // canvas
