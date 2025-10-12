@@ -93,4 +93,31 @@ export class Line {
                 (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
         };
     }
+
+    static buildSmoothPath(points: Point[], segmentsPerSegment = 24): Point[] {
+        const out = [];
+        for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[Math.max(0, i - 1)];
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const p3 = points[Math.min(points.length - 1, i + 2)];
+            for (let s = 0; s < segmentsPerSegment; s++) {
+                const t = s / segmentsPerSegment;
+                const xy = Line.catmullRom(p0, p1, p2, p3, t);
+                out.push(xy);
+            }
+        }
+        out.push(points[points.length - 1]);
+        return out;
+    }
+
+    static computeArcLengths(path: Point[]): number[] {
+        const lens = [0];
+        for (let i = 1; i < path.length; i++) {
+            const dx = path[i].x - path[i - 1].x;
+            const dy = path[i].y - path[i - 1].y;
+            lens.push(lens[lens.length - 1] + Math.hypot(dx, dy));
+        }
+        return lens;
+    }
 }

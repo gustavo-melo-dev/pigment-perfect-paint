@@ -1,5 +1,7 @@
 // Utility functions for WebGL operations
 
+import { Line, type Point } from "../Line";
+
 export function createProgram(gl: WebGLRenderingContext, vertexShaderSource: string, fragmentShaderSource: string): WebGLProgram {
     const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
     const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
@@ -188,4 +190,23 @@ export function enableScissorForElement(gl: WebGLRenderingContext, canvas: HTMLC
  */
 export function disableScissor(gl: WebGLRenderingContext): void {
     gl.disable(gl.SCISSOR_TEST);
+}
+
+export function samplePointsAlongPath(rawPoints: Point[], spacing: number): Point[] {
+    if (rawPoints.length < 2) return [];
+    const path = Line.buildSmoothPath(rawPoints, 18);
+    const lens = Line.computeArcLengths(path);
+    const total = lens[lens.length - 1];
+    const out = [];
+    for (let d = 0; d <= total; d += spacing) {
+        let idx = 0; while (idx < lens.length - 1 && lens[idx + 1] < d) idx++;
+        const segLen = lens[idx + 1] - lens[idx];
+        const t = segLen === 0 ? 0 : (d - lens[idx]) / segLen;
+        const x = path[idx].x * (1 - t) + path[idx + 1].x * t;
+        const y = path[idx].y * (1 - t) + path[idx + 1].y * t;
+        const look = Math.min(d + 1.0, total);
+        let idx2 = idx; while (idx2 < lens.length - 1 && lens[idx2 + 1] < look) idx2++;
+        out.push({ x, y });
+    }
+    return out;
 }
