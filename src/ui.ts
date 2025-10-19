@@ -1,12 +1,13 @@
 import { AppContext } from './AppContext.js';
 
 /**
- * Update the current color indicator to show the brush's actual color
+ * Update the current color indicator to show the brush's selected color
  */
 export function updateColorIndicator() {
     const currentColorIndicator = document.getElementById('current-color-indicator');
     if (currentColorIndicator && AppContext.brush) {
-        const color = AppContext.brush.color;
+        // Show the selected color (what the user chose, not the mixed color)
+        const color = AppContext.brush.selectedColor;
         // Convert from 0-1 to 0-255
         const r = Math.round(color[0] * 255);
         const g = Math.round(color[1] * 255);
@@ -16,42 +17,57 @@ export function updateColorIndicator() {
 }
 
 /**
- * Setup brush opacity slider functionality
+ * Setup brush sliders functionality
  */
 function setBrushSliders() {
-    // Opacity slider
-    const opacitySlider = document.getElementById('brush-opacity') as HTMLInputElement;
-    const opacityValue = document.getElementById('brush-opacity-value') as HTMLElement;
-    if (opacitySlider && opacityValue) {
-        // Ensure the slider starts at 100
-        opacitySlider.value = "100";
-        opacityValue.textContent = "100";
-
-        // Set initial brush opacity to 100%
-        AppContext.brush.setOpacity(1.0);
-
-        // Add the event listener for when the user changes the slider
-        opacitySlider.addEventListener('input', () => {
-            const value = Number(opacitySlider.value);
-            opacityValue.textContent = value.toString();
-            // Set brush opacity (0-1)
-            AppContext.brush.setOpacity(value / 100);
-        });
-    }
-
     // Flow slider
     const flowSlider = document.getElementById('brush-flow') as HTMLInputElement;
     const flowValue = document.getElementById('brush-flow-value') as HTMLElement;
     if (flowSlider && flowValue) {
-        // Set initial values to match default of 0.34
-        flowSlider.value = "0.34";
-        flowValue.textContent = "0.34";
-        AppContext.setBrushFlow(0.34);
+        // Set initial values to match default of 0.30 (30%)
+        flowSlider.value = "30";
+        flowValue.textContent = "30";
+        AppContext.setBrushFlow(0.30);
 
         flowSlider.addEventListener('input', () => {
             const value = Number(flowSlider.value);
-            flowValue.textContent = value.toFixed(2);
-            AppContext.setBrushFlow(value);
+            flowValue.textContent = value.toString();
+            // Convert from 0-100 to 0-1
+            AppContext.setBrushFlow(value / 100);
+        });
+    }
+
+    // Color Pickup slider
+    const colorPickupSlider = document.getElementById('color-pickup') as HTMLInputElement;
+    const colorPickupValue = document.getElementById('color-pickup-value') as HTMLElement;
+    if (colorPickupSlider && colorPickupValue) {
+        // Set initial values to match default of 0.9 (90%)
+        colorPickupSlider.value = "90";
+        colorPickupValue.textContent = "90";
+        AppContext.brush.setColorPickupAmount(0.9);
+
+        colorPickupSlider.addEventListener('input', () => {
+            const value = Number(colorPickupSlider.value);
+            colorPickupValue.textContent = value.toString();
+            // Set color pickup amount (0-1)
+            AppContext.brush.setColorPickupAmount(value / 100);
+        });
+    }
+
+    // Color Return slider
+    const colorReturnSlider = document.getElementById('color-return') as HTMLInputElement;
+    const colorReturnValue = document.getElementById('color-return-value') as HTMLElement;
+    if (colorReturnSlider && colorReturnValue) {
+        // Set initial values to match default of 0.1 (10%)
+        colorReturnSlider.value = "10";
+        colorReturnValue.textContent = "10";
+        AppContext.brush.setColorReturnRate(0.1);
+
+        colorReturnSlider.addEventListener('input', () => {
+            const value = Number(colorReturnSlider.value);
+            colorReturnValue.textContent = value.toString();
+            // Set color return rate (0-1)
+            AppContext.brush.setColorReturnRate(value / 100);
         });
     }
 }
@@ -127,7 +143,7 @@ function setupColorPalette() {
             }
 
             // Use the current opacity instead of the one defined in the color
-            AppContext.changeBrushColor([r, g, b, AppContext.brush.brushOpacity]);
+            AppContext.changeBrushColor([r, g, b, 1.0]);
 
             // Update the color indicator to reflect the actual brush color
             updateColorIndicator();

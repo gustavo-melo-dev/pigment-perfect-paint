@@ -34,13 +34,14 @@ export class Brush {
 
     private u_translate: WebGLUniformLocation;
 
-    public color: [number, number, number, number]; // the RGBA color that is loaded in the brush
+    public selectedColor: [number, number, number, number]; // the original selected color
+    public currentColorMixbox: [number, number, number, number]; // current color for mixbox mode
+    public currentColorRGB: [number, number, number, number]; // current color for RGB mode
     public size: number; // the size of the brush
-    public brushOpacity: number = 1.0; // the opacity of the brush (0-1)
-    public flow: number = 0.1; // brush flow (0-1)
-    public spacing: number = 0.01; // spacing between stamps 
-    private useMixbox: boolean = true; // Whether to use MIXBOX or RGB lerping
-
+    public flow: number = 0.30; // brush flow (0-1)
+    public spacing: number = 0.1; // spacing between stamps 
+    public colorPickupAmount: number = 0.9; // How much canvas color to pick up (0-1)
+    public colorReturnRate: number = 0.1; // How quickly to return to selected color (0-1)
 
     /**
      * Creates a new Brush instance. 
@@ -57,7 +58,9 @@ export class Brush {
         size = 40 // Default size of 4 * 10
     ) {
         this.gl = gl;
-        this.color = color;
+        this.selectedColor = [...color] as [number, number, number, number]; // Store the original color
+        this.currentColorMixbox = [...color] as [number, number, number, number]; // Initialize to selected color
+        this.currentColorRGB = [...color] as [number, number, number, number]; // Initialize to selected color
         this.size = size;
 
         const vs = BRUSH_VERTEX_SHADER;
@@ -115,9 +118,6 @@ export class Brush {
         // Load brush texture
         const texture = createTextureFromImage(this.gl, "brush.png");
         this.brushTexture = texture;
-
-        // Set initial mixing mode
-        this.setMixingMode(this.useMixbox);
     }
 
     /**
@@ -165,99 +165,12 @@ export class Brush {
         const firstPoint = line.points[0];
         enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
 
-        // Build smoothed centerline
-        // const resolution = 20;
-        // const smoothedPoints: { x: number, y: number }[] = [];
-        // const points = [line.points[0], ...line.points, line.points[line.points.length - 1]];
-        // for (let i = 0; i < points.length - 3; i++) {
-        //     const p0 = points[i];
-        //     const p1 = points[i + 1];
-        //     const p2 = points[i + 2];
-        //     const p3 = points[i + 3];
-        //     for (let j = 0; j < resolution; j++) {
-        //         const t = j / resolution;
-        //         smoothedPoints.push(Line.catmullRom(p0, p1, p2, p3, t));
-        //     }
-        // }
-        // if (smoothedPoints.length < 2) return;
-
-        // // Compute arc lengths along the smoothed path
-        // const arcLengths: number[] = [0];
-        // for (let i = 1; i < smoothedPoints.length; i++) {
-        //     const dx = smoothedPoints[i].x - smoothedPoints[i - 1].x;
-        //     const dy = smoothedPoints[i].y - smoothedPoints[i - 1].y;
-        //     arcLengths.push(arcLengths[arcLengths.length - 1] + Math.hypot(dx, dy));
-        // }
-        // const totalLength = arcLengths[arcLengths.length - 1];
-
-        // // Sample stamp positions at regular spacing intervals
-        // const stamps: Array<{ x: number; y: number; }> = [];
-
-        // for (let distance = 0; distance <= totalLength; distance += 1) {
-        //     // Find which segment this distance falls into
-        //     let idx = 0;
-        //     while (idx < arcLengths.length - 1 && arcLengths[idx + 1] < distance) {
-        //         idx++;
-        //     }
-
-        //     // Interpolate position within the segment
-        //     const segLen = arcLengths[idx + 1] - arcLengths[idx];
-        //     const t = segLen === 0 ? 0 : (distance - arcLengths[idx]) / segLen;
-        //     const x = smoothedPoints[idx].x * (1 - t) + smoothedPoints[idx + 1].x * t;
-        //     const y = smoothedPoints[idx].y * (1 - t) + smoothedPoints[idx + 1].y * t;
-
-        //     stamps.push({ x, y });
-        // }
-
-
-        // Generate quads for each stamp
-        // const stripVerts: number[] = [];
-        // const brushTexCoords: number[] = [];
-
-        // // Track cumulative distance for texture stamping
-        // let cumulativeDistance = 0;
-        // const textureRepeatDistance = this.size * 0.25; // Repeat texture every ~25% of brush size
-
-        // for (let i = 0; i < smoothedPoints.length - 1; i++) {
-        //     const p0 = smoothedPoints[i];
-        //     const p1 = smoothedPoints[i + 1];
-        //     let dx = p1.x - p0.x;
-        //     let dy = p1.y - p0.y;
-        //     const len = Math.hypot(dx, dy);
-        //     if (len === 0) continue;
-        //     dx /= len; dy /= len;
-
-        //     // perpendicular for quad
-        //     const nx = -dy * (this.size / 2);
-        //     const ny = dx * (this.size / 2);
-
-        //     const stampsInSegment = Math.floor(len / textureRepeatDistance);
-        //     for (let s = 0; s < stampsInSegment; s++) {
-        //         const t = (s * textureRepeatDistance) / len;
-        //         const cx = p0.x + dx * len * t;
-        //         const cy = p0.y + dy * len * t;
-
-        //         // Full-size quad centered at (cx, cy)
-        //         stripVerts.push(
-        //             cx - nx, cy - ny,   // top-left
-        //             cx + nx, cy - ny,   // top-right
-        //             cx + nx, cy + ny,   // bottom-right
-        //             cx - nx, cy + ny    // bottom-left
-        //         );
-
-        //         // Texture coordinates per quad
-        //         brushTexCoords.push(
-        //             0, 0,   // top-left
-        //             1, 0,   // top-right
-        //             1, 1,   // bottom-right
-        //             0, 1    // bottom-left
-        //         );
-        //     }
-        // }
-
         // Advance ping-pong (shared between both canvases)
         let stamps = samplePointsAlongPath(line.points, this.spacing * this.size);
         canvas.advancePingPong();
+
+        // Sample canvas color at the start of the stroke to influence brush color
+        this.updateBrushColorFromCanvas(canvas, firstPoint.x, firstPoint.y);
 
         // Draw to BOTH canvases: mixbox and RGB
         const modes: ('mixbox' | 'rgb')[] = ['mixbox', 'rgb'];
@@ -279,8 +192,8 @@ export class Brush {
 
             // Draw stroke with appropriate mixing mode
             enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
-            gl.useProgram(this.program);
 
+            gl.useProgram(this.program);
             // Set new uniforms for the shader
             // Set both fragment and vertex shader uniforms
             gl.uniform1f(gl.getUniformLocation(this.program, "layer_width"), canvasWidth);
@@ -288,10 +201,11 @@ export class Brush {
 
             // Fragment shader specific uniforms
             gl.uniform1f(gl.getUniformLocation(this.program, "size"), this.size);
-            gl.uniform1f(gl.getUniformLocation(this.program, "opacity"), this.brushOpacity);
             gl.uniform1f(gl.getUniformLocation(this.program, "flow"), this.flow);
 
-            gl.uniform3fv(gl.getUniformLocation(this.program, "color"), [line.color[0], line.color[1], line.color[2]]);
+            // Use the appropriate currentColor for each mode
+            const currentColor = mode === 'mixbox' ? this.currentColorMixbox : this.currentColorRGB;
+            gl.uniform3fv(gl.getUniformLocation(this.program, "color"), [currentColor[0], currentColor[1], currentColor[2]]);
             gl.uniform1f(gl.getUniformLocation(this.program, "mask_width"), 1024);
             gl.uniform1f(gl.getUniformLocation(this.program, "mask_height"), 1024);
 
@@ -299,18 +213,13 @@ export class Brush {
             gl.uniform1i(gl.getUniformLocation(this.program, "mix_mode"), mode === 'mixbox' ? 0 : 1);
 
             // Bind textures
-            bindTexture(gl, this.brushTexture, 0); // mask_texture
-            gl.uniform1i(gl.getUniformLocation(this.program, "mask_texture"), 0);
+            gl.uniform1i(gl.getUniformLocation(this.program, "layer_stroke_texture"), 0);
 
-            // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-            bindTexture(gl, prevTex, 1); // layer_stroke_texture
-            gl.uniform1i(gl.getUniformLocation(this.program, "layer_stroke_texture"), 1);
+            bindTexture(gl, this.brushTexture, 1); // mask_texture
+            gl.uniform1i(gl.getUniformLocation(this.program, "mask_texture"), 1);
 
             bindTexture(gl, mixbox.lutTexture(gl), 2);
             gl.uniform1i(gl.getUniformLocation(this.program, "mixbox_lut"), 2);
-
 
             gl.bindVertexArray(this.vao);
 
@@ -323,18 +232,14 @@ export class Brush {
                 -halfSize, halfSize,   // top-left
                 halfSize, halfSize     // top-right
             ]);
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-            gl.bufferData(gl.ARRAY_BUFFER, quadVerts, gl.STREAM_DRAW);
-
-            // Index buffer (already bound to VAO but update data)
-            const quadIdx = new Uint16Array([0, 1, 2, 1, 3, 2]);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, quadIdx, gl.STATIC_DRAW);
 
 
             for (const s of stamps) {
+                gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+                gl.bufferData(gl.ARRAY_BUFFER, quadVerts, gl.STREAM_DRAW);
                 this.drawQuadAt(gl, s);
             }
+
 
             // Check for WebGL errors
             const error = gl.getError();
@@ -355,28 +260,12 @@ export class Brush {
      * @param {[number, number, number, number]} color 
      */
     public setColor(color: [number, number, number, number]) {
-        this.color = color;
+        this.selectedColor = [...color] as [number, number, number, number]; // Update selected color
+        this.currentColorMixbox = [...color] as [number, number, number, number]; // Reset mixbox color to selected
+        this.currentColorRGB = [...color] as [number, number, number, number]; // Reset RGB color to selected
         const gl = this.gl;
         gl.useProgram(this.program);
         gl.uniform3fv(this.colorUniformLocation, [color[0], color[1], color[2]]);
-        gl.uniform1f(gl.getUniformLocation(this.program, "opacity"), this.brushOpacity);
-    }
-
-    /**
-     * Sets the opacity of the brush (0-1)
-     */
-    public setOpacity(opacity: number) {
-        this.brushOpacity = Math.max(0, Math.min(1, opacity));
-
-        // Immediately update the opacity uniform in the shader
-        const gl = this.gl;
-        gl.useProgram(this.program);
-
-        // Update the opacity uniform in the shader
-        const opacityLocation = gl.getUniformLocation(this.program, "opacity");
-        if (opacityLocation) {
-            gl.uniform1f(opacityLocation, this.brushOpacity);
-        }
     }
 
     /**
@@ -399,29 +288,11 @@ export class Brush {
         this.flow = Math.max(0, Math.min(1, flow));
         const gl = this.gl;
         gl.useProgram(this.program);
-        // Use the explicit flow value if set, otherwise calculate from opacity
+
         const flowValue = this.flow;
         const flowLocation = gl.getUniformLocation(this.program, "flow");
         if (flowLocation) {
             gl.uniform1f(flowLocation, flowValue);
-        }
-    }
-
-    /**
-     * Sets the mixing mode (MIXBOX or RGB)
-     * 
-     * @public
-     * @param {boolean} useMixbox - Whether to use MIXBOX (true) or RGB (false)
-     */
-    public setMixingMode(useMixbox: boolean) {
-        this.useMixbox = useMixbox;
-        // Update the uniform in the shader program
-        const gl = this.gl;
-        gl.useProgram(this.program);
-        const mixModeLocation = gl.getUniformLocation(this.program, "mix_mode");
-        if (mixModeLocation) {
-            // In the new shader: MIXMODE_MIXBOX = 0, MIXMODE_RGB = 1
-            gl.uniform1i(mixModeLocation, useMixbox ? 0 : 1);
         }
     }
 
@@ -436,5 +307,169 @@ export class Brush {
         }
 
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    }
+
+    /**
+     * Samples the canvas color at a specific point and updates the brush's current colors
+     * Updates BOTH mixbox and RGB colors independently by sampling from their respective canvases
+     * 
+     * @private
+     * @param {Canvas} canvas - The canvas to sample from
+     * @param {number} x - X coordinate to sample
+     * @param {number} y - Y coordinate to sample
+     */
+    private updateBrushColorFromCanvas(canvas: Canvas, x: number, y: number): void {
+        const gl = this.gl;
+
+        // Sample size calculation (same for both modes)
+        const sampleSize = Math.max(3, Math.floor(this.size * 0.2)); // Sample ~20% of brush size
+        const halfSample = Math.floor(sampleSize / 2);
+
+        // Calculate canvas-space coordinates
+        const canvasX = Math.floor(x * (window.devicePixelRatio || 1));
+        const canvasY = Math.floor(y * (window.devicePixelRatio || 1));
+        const webglY = canvas.canvas.height - canvasY - halfSample; // Flip Y for WebGL
+
+        // Update MIXBOX color by sampling from mixbox canvas
+        {
+            const prevFramebuffer = canvas.getInactiveFramebuffer('mixbox');
+            gl.bindFramebuffer(gl.FRAMEBUFFER, prevFramebuffer);
+
+            const pixels = new Uint8Array(sampleSize * sampleSize * 4);
+            gl.readPixels(
+                Math.max(0, canvasX - halfSample),
+                Math.max(0, webglY),
+                sampleSize,
+                sampleSize,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                pixels
+            );
+
+            const sampledColor = this.calculateAverageColor(pixels);
+            if (sampledColor) {
+                const pickupBlend = this.blendColors(this.currentColorMixbox, sampledColor, this.colorPickupAmount, true);
+                this.currentColorMixbox = this.blendColors(pickupBlend, this.selectedColor, this.colorReturnRate, true);
+            } else {
+                this.currentColorMixbox = this.blendColors(this.currentColorMixbox, this.selectedColor, this.colorReturnRate, true);
+            }
+        }
+
+        // Update RGB color by sampling from RGB canvas
+        {
+            const prevFramebuffer = canvas.getInactiveFramebuffer('rgb');
+            gl.bindFramebuffer(gl.FRAMEBUFFER, prevFramebuffer);
+
+            const pixels = new Uint8Array(sampleSize * sampleSize * 4);
+            gl.readPixels(
+                Math.max(0, canvasX - halfSample),
+                Math.max(0, webglY),
+                sampleSize,
+                sampleSize,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                pixels
+            );
+
+            const sampledColor = this.calculateAverageColor(pixels);
+            if (sampledColor) {
+                const pickupBlend = this.blendColors(this.currentColorRGB, sampledColor, this.colorPickupAmount, false);
+                this.currentColorRGB = this.blendColors(pickupBlend, this.selectedColor, this.colorReturnRate, false);
+            } else {
+                this.currentColorRGB = this.blendColors(this.currentColorRGB, this.selectedColor, this.colorReturnRate, false);
+            }
+        }
+
+        // Unbind framebuffer
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    /**
+     * Calculate average color from sampled pixels
+     * 
+     * @private
+     * @param {Uint8Array} pixels - Pixel data
+     * @returns {[number, number, number, number] | null} Average color or null if no valid pixels
+     */
+    private calculateAverageColor(pixels: Uint8Array): [number, number, number, number] | null {
+        let r = 0, g = 0, b = 0, a = 0;
+        let validPixels = 0;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+            const alpha = pixels[i + 3] / 255;
+            // Only consider pixels with some opacity
+            if (alpha > 0.1) {
+                r += pixels[i] / 255;
+                g += pixels[i + 1] / 255;
+                b += pixels[i + 2] / 255;
+                a += alpha;
+                validPixels++;
+            }
+        }
+
+        if (validPixels > 0) {
+            return [r / validPixels, g / validPixels, b / validPixels, a / validPixels];
+        }
+        return null;
+    }
+
+    /**
+     * Blends two colors together using either MIXBOX or RGB blending
+     * 
+     * @private
+     * @param {[number, number, number, number]} colorA - First color (RGBA)
+     * @param {[number, number, number, number]} colorB - Second color (RGBA)
+     * @param {number} t - Blend amount (0 = all colorA, 1 = all colorB)
+     * @param {boolean} useMixbox - Whether to use MIXBOX (true) or RGB (false) blending
+     * @returns {[number, number, number, number]} Blended color
+     */
+    private blendColors(
+        colorA: [number, number, number, number],
+        colorB: [number, number, number, number],
+        t: number,
+        useMixbox: boolean
+    ): [number, number, number, number] {
+        if (useMixbox) {
+            // Use MIXBOX for realistic pigment mixing
+            const mixboxResult = mixbox.lerp(
+                [colorA[0] * 255, colorA[1] * 255, colorA[2] * 255],
+                [colorB[0] * 255, colorB[1] * 255, colorB[2] * 255],
+                t
+            );
+            return [
+                mixboxResult[0] / 255,
+                mixboxResult[1] / 255,
+                mixboxResult[2] / 255,
+                colorA[3] * (1 - t) + colorB[3] * t
+            ];
+        } else {
+            // Simple RGB lerp
+            return [
+                colorA[0] * (1 - t) + colorB[0] * t,
+                colorA[1] * (1 - t) + colorB[1] * t,
+                colorA[2] * (1 - t) + colorB[2] * t,
+                colorA[3] * (1 - t) + colorB[3] * t
+            ];
+        }
+    }
+
+    /**
+     * Sets the color pickup amount (how much canvas color to pick up)
+     * 
+     * @public
+     * @param {number} amount - Pickup amount between 0 and 1
+     */
+    public setColorPickupAmount(amount: number) {
+        this.colorPickupAmount = Math.max(0, Math.min(1, amount));
+    }
+
+    /**
+     * Sets the color return rate (how quickly brush returns to selected color)
+     * 
+     * @public
+     * @param {number} rate - Return rate between 0 and 1
+     */
+    public setColorReturnRate(rate: number) {
+        this.colorReturnRate = Math.max(0, Math.min(1, rate));
     }
 }

@@ -52,7 +52,7 @@ export class AppContext {
     static startDrawing(x: number, y: number) {
         this.drawing = true;
         const pos = { x, y };
-        this.currentLine = new Line(pos, this.brush.color);
+        this.currentLine = new Line(pos, this.brush.selectedColor);
     }
 
     static continueDrawing(x: number, y: number) {
