@@ -76,7 +76,6 @@ precision highp float;
 
 // Brush parameters
 uniform float size;
-uniform float opacity;
 uniform float flow;
 uniform vec3 color;
 uniform float mask_width;
@@ -95,63 +94,31 @@ out vec4 fragColor;
 #include "mixbox.glsl"
 
 void main(void) {
-    float radius = size/2.0;
+    float radius = size*0.5;
     vec2 localUV = v_brushTexCoord;
     
     // calculate alpha mask
     float maskAlpha = texture(mask_texture, localUV).r;
-    if (maskAlpha < 0.01) discard;
-    maskAlpha = flow*maskAlpha;
+    if (maskAlpha < .8) discard;
 
     vec4 layerData = texture(layer_stroke_texture,vec2(gl_FragCoord.xy)/vec2(layer_width,layer_height)).rgba;
     
-    float alphaA = maskAlpha;
-    float alphaB = layerData.a;
+    vec3 colorA = color;
+    vec3 colorB = layerData.rgb;
+    
+    vec3 fullStrengthRGB = vec3(0.0);
+    if (mix_mode == MIXMODE_MIXBOX) {
+        // Use MIXBOX for rich color mixing
+        fullStrengthRGB = mixbox_lerp(colorB, colorA, flow);
+    } else {
+        // Use RGB mixing
+        fullStrengthRGB = mix(colorB, colorA, flow);
+    }
+    
     
     // For the alpha output, still use the normal alpha blending
     float fullOpacityAlpha = mix(layerData.a, 1.0, maskAlpha);
-    
-    // First, calculate the full-strength color using MIXBOX (or RGB) without any opacity limitation
-    mixbox_latent latA = mixbox_rgb_to_latent(color); // Use the original color for rich MIXBOX mixing
-    mixbox_latent latB = mixbox_rgb_to_latent(layerData.rgb);
-    float denom = (alphaA + alphaB * (1.0 - alphaA));
-    vec3 fullStrengthRGB = vec3(0.0);
-    
-    if(denom > 0.0) {
-        if (mix_mode == MIXMODE_MIXBOX) {
-            // Use MIXBOX for rich color mixing
-            fullStrengthRGB = mixbox_latent_to_rgb((latB * alphaB * (1.0 - alphaA) + alphaA * latA) / denom);
-        } else {
-            // Use RGB mixing
-            fullStrengthRGB = (layerData.rgb * alphaB * (1.0 - alphaA) + alphaA * color) / denom;
-        }
-    }
-    
-    // Now apply opacity as a cap by blending between the canvas color and the full-strength color
-    // For darker colors like black, this ensures they can only reach the opacity-defined darkness
-    float whiteValue = 1.0 - opacity; // Minimum lightness value based on opacity
-    
-    // Get the perceived brightness of the mixed color (average of RGB components)
-    float brightness = (fullStrengthRGB.r + fullStrengthRGB.g + fullStrengthRGB.b) / 3.0;
-    
-    // Calculate how much we need to lighten the color to respect the opacity cap
-    float targetBrightness = max(brightness, whiteValue);
-    float lightenAmount = targetBrightness - brightness;
-    
-    // Apply the lightening while preserving the color's hue
-    vec3 cappedRGB;
-    if (lightenAmount > 0.0) {
-        // Lighten the color while preserving its hue
-        cappedRGB = mix(fullStrengthRGB, vec3(1.0), lightenAmount);
-    } else {
-        cappedRGB = fullStrengthRGB;
-    }
-    
-    // For the final result, blend between the original canvas and the capped color
-    vec3 finalRGB = mix(layerData.rgb, cappedRGB, maskAlpha);
-    float finalAlpha = fullOpacityAlpha;
-    
-    fragColor = vec4(finalRGB, finalAlpha);
+    fragColor = vec4(fullStrengthRGB, fullOpacityAlpha);
 }
 `;
 BRUSH_FRAGMENT_SHADER = BRUSH_FRAGMENT_SHADER.replace('#include "mixbox.glsl"', mixbox.glsl());
