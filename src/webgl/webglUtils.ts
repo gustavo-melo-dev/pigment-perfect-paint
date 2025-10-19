@@ -194,18 +194,34 @@ export function disableScissor(gl: WebGLRenderingContext): void {
 
 export function samplePointsAlongPath(rawPoints: Point[], spacing: number): Point[] {
     if (rawPoints.length < 2) return [];
-    const path = Line.buildSmoothPath(rawPoints, 18);
-    const lens = Line.computeArcLengths(path);
-    const total = lens[lens.length - 1];
+
+    const path = Line.buildSmoothPath(rawPoints, 18); // smoothed points using Catmull-Rom
+    const lens = Line.computeArcLengths(path); // accumulated Euclidean distances
+    const total = lens[lens.length - 1]; // total path length
+
     const out = [];
+    let idx = 0;
     for (let d = 0; d <= total; d += spacing) {
-        let idx = 0; while (idx < lens.length - 1 && lens[idx + 1] < d) idx++;
-        const segLen = lens[idx + 1] - lens[idx];
-        const t = segLen === 0 ? 0 : (d - lens[idx]) / segLen;
-        const x = path[idx].x * (1 - t) + path[idx + 1].x * t;
-        const y = path[idx].y * (1 - t) + path[idx + 1].y * t;
-        const look = Math.min(d + 1.0, total);
-        let idx2 = idx; while (idx2 < lens.length - 1 && lens[idx2 + 1] < look) idx2++;
+        // find the point p0 such that lens[p0] <= d < lens[p0 + 1]
+        while (idx < lens.length - 2 && lens[idx + 1] < d) idx++;
+
+        // if we're beyond the last point, just use the last point
+        if (idx >= path.length - 1) {
+            const last = path[path.length - 1];
+            out.push({ x: last.x, y: last.y });
+            continue;
+        }
+
+        const segLen = lens[idx + 1] - lens[idx]; // length of the current segment
+        const t = segLen === 0 ? 0 : (d - lens[idx]) / segLen; // parameter t between points idx and idx + 1
+
+        const p0 = path[idx];
+        const p1 = path[idx + 1];
+
+        // interpolação linear entre p0 e p1
+        const x = p0.x * (1 - t) + p1.x * t;
+        const y = p0.y * (1 - t) + p1.y * t;
+
         out.push({ x, y });
     }
     return out;
