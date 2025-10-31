@@ -219,11 +219,20 @@ function setupMixingModeToggle() {
     }
 }
 
+function setupDownloadButton() {
+    const downloadButton = document.getElementById('download-canvas-btn') as HTMLButtonElement;
+    if (downloadButton) {
+        downloadButton.addEventListener('click', () => {
+            AppContext.webglCanvas.downloadCanvasAsImage();
+        });
+    }
+}
+
 export function setupUIElements() {
     setBrushSliders();
     setupBrushSizeButtons();
     setupColorPalette();
     setupMixingModeToggle();
-    // Set initial color indicator
+    setupDownloadButton();
     updateColorIndicator();
 }

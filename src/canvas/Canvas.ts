@@ -269,4 +269,107 @@ export class Canvas {
             pixels[3] / 255,
         ];
     }
+
+    public downloadCanvasAsImage(): void {
+        const gl = this.gl;
+        const fullWidth = this.canvas.width;
+        const fullHeight = this.canvas.height;
+
+        // Find the DOM element that defines the desired crop area
+        const areaEl = document.getElementById('canvas-area') as HTMLElement | null;
+        let readX = 0;
+        let readY = 0;
+        let readW = fullWidth;
+        let readH = fullHeight;
+
+        if (areaEl) {
+            const areaRect = areaEl.getBoundingClientRect();
+            const canvasRect = this.canvas.getBoundingClientRect();
+
+            // convert to canvas pixel coordinates
+            const scaleX = fullWidth / canvasRect.width;
+            const scaleY = fullHeight / canvasRect.height;
+
+            const left = (areaRect.left - canvasRect.left) * scaleX;
+            const top = (areaRect.top - canvasRect.top) * scaleY;
+            const w = areaRect.width * scaleX;
+            const h = areaRect.height * scaleY;
+
+            // Clamp and ensure integers
+            readX = Math.max(0, Math.floor(left));
+            readY = Math.max(0, Math.floor(top));
+            readW = Math.max(0, Math.floor(w));
+            readH = Math.max(0, Math.floor(h));
+
+            // Clamp to canvas bounds
+            if (readX + readW > fullWidth) readW = fullWidth - readX;
+            if (readY + readH > fullHeight) readH = fullHeight - readY;
+        }
+
+        if (readW === 0 || readH === 0) {
+            // Nothing to read — fallback to full canvas
+            readX = 0; readY = 0; readW = fullWidth; readH = fullHeight;
+        }
+
+        // Bind active framebuffer and read the sub-rectangle
+        const framebuffer = this.getActiveFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+
+        // WebGL readPixels expects bottom-left origin for the Y coordinate.
+        // We computed readY as distance from top; convert to bottom-based origin.
+        const webglReadY = fullHeight - (readY + readH);
+
+        const pixels = new Uint8Array(readW * readH * 4);
+        gl.readPixels(readX, webglReadY, readW, readH, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        // Put pixels into an offscreen 2D canvas (flip rows so image is upright)
+        const off = document.createElement('canvas');
+        off.width = readW;
+        off.height = readH;
+        const ctx = off.getContext('2d');
+        if (!ctx) {
+            // Fallback: use visible canvas toDataURL (best-effort)
+            const fallback = this.canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'canvas-image.png';
+            link.href = fallback;
+            link.click();
+            link.href = '';
+            return;
+        }
+
+        const imageData = ctx.createImageData(readW, readH);
+        const rowBytes = readW * 4;
+        for (let y = 0; y < readH; y++) {
+            // pixels from readPixels are bottom-to-top for the rectangle, so flip
+            const srcStart = (readH - 1 - y) * rowBytes;
+            const dstStart = y * rowBytes;
+            imageData.data.set(pixels.subarray(srcStart, srcStart + rowBytes), dstStart);
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        // Download blob
+        off.toBlob((blob) => {
+            if (!blob) {
+                const fallback = off.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = 'canvas-image.png';
+                link.href = fallback;
+                link.click();
+                link.href = '';
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'canvas-image.png';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    }
 }
