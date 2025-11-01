@@ -20,6 +20,8 @@
     body {
         height: 100%;
         overflow: hidden;
+        touch-action: none;
+        overscroll-behavior: contain;
     }
 
     #canvas {
@@ -32,6 +34,12 @@
         width: 100%;
         height: 100%;
         z-index: 1;
+        /* prevents panning and zooming */
+        touch-action: none;
+        /* prevents text selection */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
     }
 
     #palette-area {
