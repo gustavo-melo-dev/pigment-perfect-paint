@@ -52,6 +52,36 @@ function palettePointerDown() {
 function canvasPointerMove() {
     return (e: PointerEvent) => {
         e.preventDefault();
+
+        // Check if the pointer is within the canvas-area or palette-area bounds
+        const canvasAreaElement = document.getElementById("canvas-area") as HTMLDivElement;
+        const paletteAreaElement = document.getElementById("palette-area") as HTMLDivElement;
+
+        if (canvasAreaElement && paletteAreaElement) {
+            const canvasAreaRect = canvasAreaElement.getBoundingClientRect();
+            const paletteAreaRect = paletteAreaElement.getBoundingClientRect();
+
+            const inCanvasArea = (
+                e.clientX >= canvasAreaRect.left &&
+                e.clientX <= canvasAreaRect.right &&
+                e.clientY >= canvasAreaRect.top &&
+                e.clientY <= canvasAreaRect.bottom
+            );
+
+            const inPaletteArea = (
+                e.clientX >= paletteAreaRect.left &&
+                e.clientX <= paletteAreaRect.right &&
+                e.clientY >= paletteAreaRect.top &&
+                e.clientY <= paletteAreaRect.bottom
+            );
+
+            // If pointer is outside both drawing areas, finalize the line
+            if (!inCanvasArea && !inPaletteArea) {
+                AppContext.finalizeCurrentLine();
+                return;
+            }
+        }
+
         // Convert client coordinates to canvas coordinates
         const canvasElement = AppContext.canvasElement;
         const rect = canvasElement.getBoundingClientRect();
