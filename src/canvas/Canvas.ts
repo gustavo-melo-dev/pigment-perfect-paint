@@ -200,7 +200,7 @@ export class Canvas {
     }
 
     /**
-     * Resizes the canvas and updates the WebGL viewport and framebuffer texture.
+     * Resizes the canvas and updates the WebGL viewport.
      *
      * @param {number} width 
      * @param {number} height 
@@ -211,7 +211,7 @@ export class Canvas {
         this.canvas.height = height;
         gl.viewport(0, 0, width, height);
 
-        // Resize all layer pairs
+        // Resize all framebuffer textures to match new canvas size
         const layers = [
             {
                 name: 'canvas-mixbox',
@@ -241,7 +241,7 @@ export class Canvas {
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
                 gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffers[i]);
 
-                // clear to transparent
+                // Clear to transparent
                 gl.clearColor(0, 0, 0, 0);
                 gl.clear(gl.COLOR_BUFFER_BIT);
 

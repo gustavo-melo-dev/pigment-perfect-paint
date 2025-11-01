@@ -141,14 +141,6 @@ export class AppContext {
         this.redrawScreen();
     }
 
-    static resizeCanvas(width: number, height: number) {
-        this.canvasElement.width = width;
-        this.canvasElement.height = height;
-        this.webglCanvas.resize(width, height);
-        this.webglCanvas.clear();
-        this.redrawAll();
-    }
-
     static changeBrushColor(color: [number, number, number, number]) {
         if (this.drawing) return; // Don't change color while drawing
         this.brush.setColor(color);

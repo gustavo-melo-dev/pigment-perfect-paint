@@ -82,17 +82,6 @@ function canvasPointerOut() {
     };
 }
 
-/**
- * Resize event handler - updates canvas size and redraws
- */
-function windowResize() {
-    return () => {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        AppContext.resizeCanvas(w, h);
-    };
-}
-
 
 /**
  * Keydown event handler - handle keyboard shortcuts
@@ -190,7 +179,6 @@ function canvasRightClick() {
  */
 export function attachEventListeners() {
     // window
-    window.addEventListener("resize", windowResize());
     window.addEventListener("keydown", windowKeydown());
     window.addEventListener("keyup", windowKeyup());
     window.addEventListener("wheel", windowWheel(), { passive: false });
