@@ -42,7 +42,7 @@ function palettePointerDown() {
             return; // Exit early to avoid starting a drawing action
         }
 
-        AppContext.startDrawing(x, y);
+        AppContext.startDrawingOnLayer(x, y, 'palette');
     };
 }
 

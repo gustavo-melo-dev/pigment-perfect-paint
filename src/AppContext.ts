@@ -52,7 +52,15 @@ export class AppContext {
     static startDrawing(x: number, y: number) {
         this.drawing = true;
         const pos = { x, y };
-        this.currentLine = new Line(pos, this.brush.selectedColor);
+        // default to canvas layer unless caller specified otherwise via overload
+        this.currentLine = new Line(pos, this.brush.selectedColor, 'canvas');
+    }
+
+    // Overload: start drawing on a specific layer (palette | canvas)
+    static startDrawingOnLayer(x: number, y: number, layer: 'canvas' | 'palette') {
+        this.drawing = true;
+        const pos = { x, y };
+        this.currentLine = new Line(pos, this.brush.selectedColor, layer);
     }
 
     static continueDrawing(x: number, y: number) {
@@ -74,6 +82,14 @@ export class AppContext {
             this.lines.push(this.currentLine);
             this.currentLine = null;
         }
+    }
+
+    /**
+     * Clears the palette layer framebuffers without affecting canvas layer strokes.
+     */
+    static clearPalette() {
+        this.webglCanvas.clearPalette();
+        this.redrawScreen();
     }
 
     static redrawScreen() {
@@ -104,7 +120,7 @@ export class AppContext {
 
             for (let i = 0; i + segmentSize <= totalPoints; i += step) {
                 // Create a temporary line with just the points for this segment
-                const tempLine = new Line(line.points[i], line.color);
+                const tempLine = new Line(line.points[i], line.color, line.layer);
                 tempLine.points = line.points.slice(i, i + segmentSize);
 
                 // Draw this segment
@@ -116,7 +132,7 @@ export class AppContext {
 
             // Ensure any remaining points are drawn
             if (line.drawnPointCount < totalPoints) {
-                const tempLine = new Line(line.points[totalPoints - segmentSize], line.color);
+                const tempLine = new Line(line.points[totalPoints - segmentSize], line.color, line.layer);
                 tempLine.points = line.points.slice(totalPoints - segmentSize);
                 this.brush.draw(tempLine, this.webglCanvas);
                 line.drawnPointCount = totalPoints;

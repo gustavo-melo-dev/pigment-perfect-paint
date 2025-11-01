@@ -228,11 +228,21 @@ function setupDownloadButton() {
     }
 }
 
+function setupClearPaletteButton() {
+    const clearPaletteButton = document.getElementById('clear-palette-btn') as HTMLButtonElement;
+    if (clearPaletteButton) {
+        clearPaletteButton.addEventListener('click', () => {
+            AppContext.clearPalette();
+        });
+    }
+}
+
 export function setupUIElements() {
     setBrushSliders();
     setupBrushSizeButtons();
     setupColorPalette();
     setupMixingModeToggle();
     setupDownloadButton();
+    setupClearPaletteButton();
     updateColorIndicator();
 }

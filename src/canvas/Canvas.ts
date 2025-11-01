@@ -12,12 +12,18 @@ export class Canvas {
     readonly canvas: HTMLCanvasElement;
     readonly gl: WebGL2RenderingContext;
 
-    // Dual canvas system: one for mixbox, one for RGB
-    // Each has its own ping-pong pair
-    private mixboxFramebuffers!: WebGLFramebuffer[];
-    private mixboxTextures!: WebGLTexture[];
-    private rgbFramebuffers!: WebGLFramebuffer[];
-    private rgbTextures!: WebGLTexture[];
+    // Layer-based dual canvas system
+    // Each layer (canvas/palette) has both mixbox and RGB framebuffers
+    // Each framebuffer has a ping-pong pair for self-interaction
+    private canvasLayerMixboxFramebuffers!: WebGLFramebuffer[];
+    private canvasLayerMixboxTextures!: WebGLTexture[];
+    private canvasLayerRgbFramebuffers!: WebGLFramebuffer[];
+    private canvasLayerRgbTextures!: WebGLTexture[];
+
+    private paletteLayerMixboxFramebuffers!: WebGLFramebuffer[];
+    private paletteLayerMixboxTextures!: WebGLTexture[];
+    private paletteLayerRgbFramebuffers!: WebGLFramebuffer[];
+    private paletteLayerRgbTextures!: WebGLTexture[];
 
     // Background handling
     private background!: Background;
@@ -48,67 +54,135 @@ export class Canvas {
     }
 
     /**
-     * Initializes the framebuffers and textures for dual-canvas rendering.
-     * Creates two complete ping-pong pairs: one for mixbox, one for RGB.
+     * Initializes the framebuffers and textures for layer-based dual-canvas rendering.
+     * Creates separate ping-pong pairs for canvas and palette layers, each with mixbox and RGB modes.
      */
     private initFramebuffers(): void {
         const gl = this.gl;
 
-        // Initialize mixbox canvas pair
-        this.mixboxTextures = [gl.createTexture()!, gl.createTexture()!];
-        this.mixboxFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
+        // Initialize canvas layer
+        this.canvasLayerMixboxTextures = [gl.createTexture()!, gl.createTexture()!];
+        this.canvasLayerMixboxFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
+        this.canvasLayerRgbTextures = [gl.createTexture()!, gl.createTexture()!];
+        this.canvasLayerRgbFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
 
-        // Initialize RGB canvas pair
-        this.rgbTextures = [gl.createTexture()!, gl.createTexture()!];
-        this.rgbFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
+        // Initialize palette layer
+        this.paletteLayerMixboxTextures = [gl.createTexture()!, gl.createTexture()!];
+        this.paletteLayerMixboxFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
+        this.paletteLayerRgbTextures = [gl.createTexture()!, gl.createTexture()!];
+        this.paletteLayerRgbFramebuffers = [gl.createFramebuffer()!, gl.createFramebuffer()!];
 
-        // Setup both pairs
-        const pairs = [
-            { textures: this.mixboxTextures, framebuffers: this.mixboxFramebuffers },
-            { textures: this.rgbTextures, framebuffers: this.rgbFramebuffers }
+        // Setup all layer pairs
+        const layers = [
+            {
+                name: 'canvas-mixbox',
+                textures: this.canvasLayerMixboxTextures,
+                framebuffers: this.canvasLayerMixboxFramebuffers
+            },
+            {
+                name: 'canvas-rgb',
+                textures: this.canvasLayerRgbTextures,
+                framebuffers: this.canvasLayerRgbFramebuffers
+            },
+            {
+                name: 'palette-mixbox',
+                textures: this.paletteLayerMixboxTextures,
+                framebuffers: this.paletteLayerMixboxFramebuffers
+            },
+            {
+                name: 'palette-rgb',
+                textures: this.paletteLayerRgbTextures,
+                framebuffers: this.paletteLayerRgbFramebuffers
+            }
         ];
 
-        for (const pair of pairs) {
+        for (const layer of layers) {
             for (let i = 0; i < 2; i++) {
-                gl.bindTexture(gl.TEXTURE_2D, pair.textures[i]);
+                gl.bindTexture(gl.TEXTURE_2D, layer.textures[i]);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.canvas.width, this.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-                gl.bindFramebuffer(gl.FRAMEBUFFER, pair.framebuffers[i]);
-                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pair.textures[i], 0);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffers[i]);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, layer.textures[i], 0);
 
                 // Clear to transparent first
                 gl.clearColor(0, 0, 0, 0);
                 gl.clear(gl.COLOR_BUFFER_BIT);
-                this.background.render();
+
+                // Render background to the appropriate layer
+                if (layer.name.startsWith('canvas')) {
+                    this.background.render('canvas');
+                } else if (layer.name.startsWith('palette')) {
+                    this.background.render('palette');
+                }
             }
         }
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.bindTexture(gl.TEXTURE_2D, null);
-    }    // Accessors for ping-pong - now returns the appropriate canvas based on mode
-    public getActiveTexture(mode?: 'mixbox' | 'rgb'): WebGLTexture {
-        const textures = (mode || this.displayMode) === 'mixbox' ? this.mixboxTextures : this.rgbTextures;
+    }    // Accessors for ping-pong - now returns the appropriate layer and mode
+    public getActiveTexture(mode?: 'mixbox' | 'rgb', layer?: 'canvas' | 'palette'): WebGLTexture {
+        const actualMode = mode || this.displayMode;
+        const actualLayer = layer || 'canvas';
+
+        let textures: WebGLTexture[];
+        if (actualLayer === 'canvas') {
+            textures = actualMode === 'mixbox' ? this.canvasLayerMixboxTextures : this.canvasLayerRgbTextures;
+        } else {
+            textures = actualMode === 'mixbox' ? this.paletteLayerMixboxTextures : this.paletteLayerRgbTextures;
+        }
         return textures[this.activeIndex];
     }
 
-    public getPreviousTexture(mode?: 'mixbox' | 'rgb'): WebGLTexture {
-        const textures = (mode || this.displayMode) === 'mixbox' ? this.mixboxTextures : this.rgbTextures;
+    public getPreviousTexture(mode?: 'mixbox' | 'rgb', layer?: 'canvas' | 'palette'): WebGLTexture {
+        const actualMode = mode || this.displayMode;
+        const actualLayer = layer || 'canvas';
+
+        let textures: WebGLTexture[];
+        if (actualLayer === 'canvas') {
+            textures = actualMode === 'mixbox' ? this.canvasLayerMixboxTextures : this.canvasLayerRgbTextures;
+        } else {
+            textures = actualMode === 'mixbox' ? this.paletteLayerMixboxTextures : this.paletteLayerRgbTextures;
+        }
         return textures[1 - this.activeIndex];
     }
 
-    public getActiveFramebuffer(mode?: 'mixbox' | 'rgb'): WebGLFramebuffer {
-        const framebuffers = (mode || this.displayMode) === 'mixbox' ? this.mixboxFramebuffers : this.rgbFramebuffers;
+    public getActiveFramebuffer(mode?: 'mixbox' | 'rgb', layer?: 'canvas' | 'palette'): WebGLFramebuffer {
+        const actualMode = mode || this.displayMode;
+        const actualLayer = layer || 'canvas';
+
+        let framebuffers: WebGLFramebuffer[];
+        if (actualLayer === 'canvas') {
+            framebuffers = actualMode === 'mixbox' ? this.canvasLayerMixboxFramebuffers : this.canvasLayerRgbFramebuffers;
+        } else {
+            framebuffers = actualMode === 'mixbox' ? this.paletteLayerMixboxFramebuffers : this.paletteLayerRgbFramebuffers;
+        }
         return framebuffers[this.activeIndex];
     }
 
-    public getInactiveFramebuffer(mode?: 'mixbox' | 'rgb'): WebGLFramebuffer {
-        const framebuffers = (mode || this.displayMode) === 'mixbox' ? this.mixboxFramebuffers : this.rgbFramebuffers;
+    public getInactiveFramebuffer(mode?: 'mixbox' | 'rgb', layer?: 'canvas' | 'palette'): WebGLFramebuffer {
+        const actualMode = mode || this.displayMode;
+        const actualLayer = layer || 'canvas';
+
+        let framebuffers: WebGLFramebuffer[];
+        if (actualLayer === 'canvas') {
+            framebuffers = actualMode === 'mixbox' ? this.canvasLayerMixboxFramebuffers : this.canvasLayerRgbFramebuffers;
+        } else {
+            framebuffers = actualMode === 'mixbox' ? this.paletteLayerMixboxFramebuffers : this.paletteLayerRgbFramebuffers;
+        }
         return framebuffers[1 - this.activeIndex];
     }
 
-    public getInactiveTexture(mode?: 'mixbox' | 'rgb'): WebGLTexture {
-        const textures = (mode || this.displayMode) === 'mixbox' ? this.mixboxTextures : this.rgbTextures;
+    public getInactiveTexture(mode?: 'mixbox' | 'rgb', layer?: 'canvas' | 'palette'): WebGLTexture {
+        const actualMode = mode || this.displayMode;
+        const actualLayer = layer || 'canvas';
+
+        let textures: WebGLTexture[];
+        if (actualLayer === 'canvas') {
+            textures = actualMode === 'mixbox' ? this.canvasLayerMixboxTextures : this.canvasLayerRgbTextures;
+        } else {
+            textures = actualMode === 'mixbox' ? this.paletteLayerMixboxTextures : this.paletteLayerRgbTextures;
+        }
         return textures[1 - this.activeIndex];
     }
 
@@ -137,24 +211,46 @@ export class Canvas {
         this.canvas.height = height;
         gl.viewport(0, 0, width, height);
 
-        // Resize both canvas pairs
-        const pairs = [
-            { textures: this.mixboxTextures, framebuffers: this.mixboxFramebuffers },
-            { textures: this.rgbTextures, framebuffers: this.rgbFramebuffers }
+        // Resize all layer pairs
+        const layers = [
+            {
+                name: 'canvas-mixbox',
+                textures: this.canvasLayerMixboxTextures,
+                framebuffers: this.canvasLayerMixboxFramebuffers
+            },
+            {
+                name: 'canvas-rgb',
+                textures: this.canvasLayerRgbTextures,
+                framebuffers: this.canvasLayerRgbFramebuffers
+            },
+            {
+                name: 'palette-mixbox',
+                textures: this.paletteLayerMixboxTextures,
+                framebuffers: this.paletteLayerMixboxFramebuffers
+            },
+            {
+                name: 'palette-rgb',
+                textures: this.paletteLayerRgbTextures,
+                framebuffers: this.paletteLayerRgbFramebuffers
+            }
         ];
 
-        for (const pair of pairs) {
+        for (const layer of layers) {
             for (let i = 0; i < 2; i++) {
-                gl.bindTexture(gl.TEXTURE_2D, pair.textures[i]);
+                gl.bindTexture(gl.TEXTURE_2D, layer.textures[i]);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-                gl.bindFramebuffer(gl.FRAMEBUFFER, pair.framebuffers[i]);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffers[i]);
 
                 // clear to transparent
                 gl.clearColor(0, 0, 0, 0);
                 gl.clear(gl.COLOR_BUFFER_BIT);
 
-                // put in the background texture
-                this.background.render();
+                // Render background to the appropriate layer
+                if (layer.name.startsWith('canvas')) {
+                    this.background.render('canvas');
+                } else if (layer.name.startsWith('palette')) {
+                    this.background.render('palette');
+                }
             }
         }
 
@@ -168,22 +264,44 @@ export class Canvas {
     public clear(): void {
         const gl = this.gl;
 
-        // Clear both canvas pairs
-        const pairs = [
-            { textures: this.mixboxTextures, framebuffers: this.mixboxFramebuffers },
-            { textures: this.rgbTextures, framebuffers: this.rgbFramebuffers }
+        // Clear all layer pairs
+        const layers = [
+            {
+                name: 'canvas-mixbox',
+                textures: this.canvasLayerMixboxTextures,
+                framebuffers: this.canvasLayerMixboxFramebuffers
+            },
+            {
+                name: 'canvas-rgb',
+                textures: this.canvasLayerRgbTextures,
+                framebuffers: this.canvasLayerRgbFramebuffers
+            },
+            {
+                name: 'palette-mixbox',
+                textures: this.paletteLayerMixboxTextures,
+                framebuffers: this.paletteLayerMixboxFramebuffers
+            },
+            {
+                name: 'palette-rgb',
+                textures: this.paletteLayerRgbTextures,
+                framebuffers: this.paletteLayerRgbFramebuffers
+            }
         ];
 
-        for (const pair of pairs) {
+        for (const layer of layers) {
             for (let i = 0; i < 2; i++) {
-                gl.bindFramebuffer(gl.FRAMEBUFFER, pair.framebuffers[i]);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffers[i]);
 
                 // clear to transparent
                 gl.clearColor(0, 0, 0, 0);
                 gl.clear(gl.COLOR_BUFFER_BIT);
 
-                // put in the background texture
-                this.background.render();
+                // Render background to the appropriate layer
+                if (layer.name.startsWith('canvas')) {
+                    this.background.render('canvas');
+                } else if (layer.name.startsWith('palette')) {
+                    this.background.render('palette');
+                }
             }
         }
 
@@ -191,7 +309,40 @@ export class Canvas {
     }
 
     /**
-     * Draws the framebuffer texture to the screen using a fullscreen quad.
+     * Clears only the palette layer framebuffers.
+     */
+    public clearPalette(): void {
+        const gl = this.gl;
+
+        const paletteLayers = [
+            {
+                textures: this.paletteLayerMixboxTextures,
+                framebuffers: this.paletteLayerMixboxFramebuffers
+            },
+            {
+                textures: this.paletteLayerRgbTextures,
+                framebuffers: this.paletteLayerRgbFramebuffers
+            }
+        ];
+
+        for (const layer of paletteLayers) {
+            for (let i = 0; i < 2; i++) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffers[i]);
+
+                // Clear to transparent
+                gl.clearColor(0, 0, 0, 0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                // Render background to palette layer
+                this.background.render('palette');
+            }
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    /**
+     * Draws the framebuffer textures to the screen, compositing canvas and palette layers.
      *
      * @param {WebGLProgram} program - WebGL program to use for rendering.
      * @param {WebGLVertexArrayObject} VAO - Vertex array object for the fullscreen quad.
@@ -201,9 +352,16 @@ export class Canvas {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(program);
-        bindTexture(gl, this.getActiveTexture(), 0);
         gl.bindVertexArray(VAO);
+
+        // Draw canvas layer first
+        bindTexture(gl, this.getActiveTexture(this.displayMode, 'canvas'), 0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        // Draw palette layer on top with blending
+        bindTexture(gl, this.getActiveTexture(this.displayMode, 'palette'), 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
         gl.bindVertexArray(null);
     }
 
@@ -225,12 +383,14 @@ export class Canvas {
 
         // Check if the point is in the palette area
         const paletteElement = document.getElementById("palette-area") as HTMLDivElement;
-        if (!paletteElement) return null;
+        const canvasAreaElement = document.getElementById("canvas-area") as HTMLDivElement;
+        if (!paletteElement || !canvasAreaElement) return null;
 
         const paletteRect = paletteElement.getBoundingClientRect();
+        const canvasRect = canvasAreaElement.getBoundingClientRect();
         const canvasElement = this.canvas.getBoundingClientRect();
 
-        // Convert coordinates to check if in palette area
+        // Convert coordinates to check which area the click is in
         const scaleX = this.canvas.width / canvasElement.width;
         const scaleY = this.canvas.height / canvasElement.height;
 
@@ -241,14 +401,27 @@ export class Canvas {
             bottom: (paletteRect.bottom - canvasElement.top) * scaleY
         };
 
-        // Only pick color if in palette area
-        if (x < paletteBounds.left || x > paletteBounds.right ||
-            y < paletteBounds.top || y > paletteBounds.bottom) {
-            return null;
+        const canvasBounds = {
+            left: (canvasRect.left - canvasElement.left) * scaleX,
+            right: (canvasRect.right - canvasElement.left) * scaleX,
+            top: (canvasRect.top - canvasElement.top) * scaleY,
+            bottom: (canvasRect.bottom - canvasElement.top) * scaleY
+        };
+
+        // Determine which layer to sample from
+        let layer: 'canvas' | 'palette';
+        if (x >= paletteBounds.left && x <= paletteBounds.right &&
+            y >= paletteBounds.top && y <= paletteBounds.bottom) {
+            layer = 'palette';
+        } else if (x >= canvasBounds.left && x <= canvasBounds.right &&
+            y >= canvasBounds.top && y <= canvasBounds.bottom) {
+            layer = 'canvas';
+        } else {
+            return null; // Outside both areas
         }
 
-        // Bind the active framebuffer to read from
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.getActiveFramebuffer());
+        // Bind the appropriate framebuffer to read from
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.getActiveFramebuffer(this.displayMode, layer));
 
         // Create a 1x1 pixel buffer to read the color
         const pixels = new Uint8Array(4);

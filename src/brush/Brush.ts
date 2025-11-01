@@ -136,7 +136,7 @@ export class Brush {
         }
 
         // Create a temporary line with just the new points to draw
-        const tempLine = new Line(newPoints[0], line.color);
+        const tempLine = new Line(newPoints[0], line.color, line.layer);
         tempLine.points = newPoints;
 
         // Draw the incremental part
@@ -161,6 +161,9 @@ export class Brush {
         const canvasWidth = canvas.canvas.width;
         const canvasHeight = canvas.canvas.height;
 
+        // Determine which layer to draw to based on the line's layer property
+        const targetLayer = line.layer;
+
         // Use first point for brush center
         const firstPoint = line.points[0];
         enableScissorBasedOnPosition(gl, firstPoint.x, firstPoint.y, AppContext.canvasElement);
@@ -170,14 +173,14 @@ export class Brush {
         canvas.advancePingPong();
 
         // Sample canvas color at the start of the stroke to influence brush color
-        this.updateBrushColorFromCanvas(canvas, firstPoint.x, firstPoint.y);
+        this.updateBrushColorFromCanvas(canvas, firstPoint.x, firstPoint.y, targetLayer);
 
-        // Draw to BOTH canvases: mixbox and RGB
+        // Draw to BOTH modes (mixbox and RGB) for the target layer
         const modes: ('mixbox' | 'rgb')[] = ['mixbox', 'rgb'];
 
         for (const mode of modes) {
-            const prevTex = canvas.getPreviousTexture(mode);
-            const destFbo = canvas.getActiveFramebuffer(mode);
+            const prevTex = canvas.getPreviousTexture(mode, targetLayer);
+            const destFbo = canvas.getActiveFramebuffer(mode, targetLayer);
 
             gl.bindFramebuffer(gl.FRAMEBUFFER, destFbo);
             gl.viewport(0, 0, canvasWidth, canvasHeight);
@@ -311,14 +314,16 @@ export class Brush {
 
     /**
      * Samples the canvas color at a specific point and updates the brush's current colors
-     * Updates BOTH mixbox and RGB colors independently by sampling from their respective canvases
+     * Updates BOTH mixbox and RGB colors independently by sampling from their respective layer/canvases
+     * Both palette and canvas layers now work the same - sampling from their own layer for mixing.
      * 
      * @private
      * @param {Canvas} canvas - The canvas to sample from
      * @param {number} x - X coordinate to sample
      * @param {number} y - Y coordinate to sample
+     * @param {('canvas' | 'palette')} layer - Which layer to sample from
      */
-    private updateBrushColorFromCanvas(canvas: Canvas, x: number, y: number): void {
+    private updateBrushColorFromCanvas(canvas: Canvas, x: number, y: number, layer: 'canvas' | 'palette'): void {
         const gl = this.gl;
 
         // Sample size calculation (same for both modes)
@@ -330,9 +335,9 @@ export class Brush {
         const canvasY = Math.floor(y * (window.devicePixelRatio || 1));
         const webglY = canvas.canvas.height - canvasY - halfSample; // Flip Y for WebGL
 
-        // Update MIXBOX color by sampling from mixbox canvas
+        // Update MIXBOX color by sampling from the specified layer
         {
-            const prevFramebuffer = canvas.getInactiveFramebuffer('mixbox');
+            const prevFramebuffer = canvas.getInactiveFramebuffer('mixbox', layer);
             gl.bindFramebuffer(gl.FRAMEBUFFER, prevFramebuffer);
 
             const pixels = new Uint8Array(sampleSize * sampleSize * 4);
@@ -355,9 +360,9 @@ export class Brush {
             }
         }
 
-        // Update RGB color by sampling from RGB canvas
+        // Update RGB color by sampling from the specified layer
         {
-            const prevFramebuffer = canvas.getInactiveFramebuffer('rgb');
+            const prevFramebuffer = canvas.getInactiveFramebuffer('rgb', layer);
             gl.bindFramebuffer(gl.FRAMEBUFFER, prevFramebuffer);
 
             const pixels = new Uint8Array(sampleSize * sampleSize * 4);

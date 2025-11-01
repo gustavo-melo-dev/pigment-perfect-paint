@@ -21,6 +21,7 @@ export class Line {
     public points: Point[] = [];
     public color: [number, number, number, number]; // RGBA color
     public drawnPointCount: number = 0; // Track how many points have been drawn
+    public layer: 'canvas' | 'palette' = 'canvas';
 
     /**
      * Creates a new line starting from the given point.
@@ -28,10 +29,11 @@ export class Line {
      * @constructor
      * @param {Point} startPoint 
      */
-    constructor(startPoint: Point, color: [number, number, number, number] = [0, 0, 0, 1]) {
+    constructor(startPoint: Point, color: [number, number, number, number] = [0, 0, 0, 1], layer: 'canvas' | 'palette' = 'canvas') {
         this.points = [];
         this.color = color;
         this.drawnPointCount = 0;
+        this.layer = layer;
         this.addPoint(startPoint);
     }
 

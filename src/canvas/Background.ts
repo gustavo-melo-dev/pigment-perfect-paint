@@ -60,22 +60,18 @@ export class Background {
     }
 
     /**
-     * Renders the background texture to the current framebuffer with stretching and opacity.
+     * Renders the background texture to the current framebuffer for a specific layer.
+     * @param layer - The layer to render ('canvas' or 'palette')
      */
-    public render(): void {
-        const canvasAreaElement = document.getElementById("canvas-area") as HTMLDivElement;
-        const paletteAreaElement = document.getElementById("palette-area") as HTMLDivElement;
+    public render(layer: 'canvas' | 'palette'): void {
+        const elementId = layer === 'canvas' ? 'canvas-area' : 'palette-area';
+        const element = document.getElementById(elementId) as HTMLDivElement;
 
-        if (canvasAreaElement) {
-            enableScissorForElement(this.gl, AppContext.canvasElement, canvasAreaElement);
+        if (element) {
+            enableScissorForElement(this.gl, AppContext.canvasElement, element);
             this.renderArea();
+            disableScissor(this.gl);
         }
-
-        if (paletteAreaElement) {
-            enableScissorForElement(this.gl, AppContext.canvasElement, paletteAreaElement);
-            this.renderArea();
-        }
-        disableScissor(this.gl);
     }
 
     private renderArea(): void {
